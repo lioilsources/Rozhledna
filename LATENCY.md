@@ -28,6 +28,27 @@ cargo build --release -p spike-agent -p spike-viewer
 ./target/release/spike-viewer 127.0.0.1:47471 --insecure-dev --headless --verify-testpattern --duration 8 --csv loop.csv
 ```
 
+### Lokálně na M2, skutečná plocha přes SCK (session Rozhledna-M2, 2026-11-22)
+
+Mac mini M2 (Mac14,3), displej **2560×1080** (ultrawide), takže stream `--max-w 2560 --max-h 1440` je ve skutečnosti 2560×1080. Agent `--source sck` jako podepsaný bundle,
+viewer na 127.0.0.1:47470, 60 s, v prohlížeči běží `counter.html`.
+
+| scénář | encode P50/P95 | network P50/P95 | decode P50/P95 | present P50/P95 | **total P50/P95** | fps | pozn. |
+|---|---|---|---|---|---|---|---|
+| SCK 2560×1080, nativní viewer | 6,0 / 11,1 | 0,7 / 1,5 | 3,4 / 4,6 | 0,3 / 0,5 | **10,3 / 16,5** | 57,5 | n=3417, 3,8 Mb/s skutečně (cíl 19,9), 0 dropů, 1 keyframe |
+| SCK 2560×1080, Flutter | | | | | | | čeká (upgrade Flutteru) |
+
+Max total 168,7 ms (první frame, inicializace). Encode je proti testpatternu nižší (6,0 vs 11,2 ms), protože frame má o 25 % méně pixelů a obsah se mezi snímky mění málo.
+Hodnota **57,5 fps není vada pipeline:** SCK posílá frame jen při změně obsahu, takže na statických místech plochy fps klesá. Pro G2 je potřeba scéna, která se mění v každém framu (video nebo `counter.html` přes celou obrazovku).
+
+### Wi-Fi, dva Macy — orientační (drát není k dispozici, 2026-11-22)
+
+MacBook (hub, 192.168.88.32) ↔ M2 (agent) na domácí Wi-Fi. **Neplatí pro bránu G2**, ta je definovaná pro drát. Přes iPhone hotspot neměřit (ping 4–78 ms).
+
+| scénář | encode | network | decode | present | total | fps | pozn. |
+|---|---|---|---|---|---|---|---|
+| SCK 2560×1080, nativní viewer, Wi-Fi | | | | | | | |
+
 ### Drátová LAN, dva Macy (Ol1n) — ČEKÁ
 
 Vyplnit podle `docs/dogfood/phase-0.md`. Brána **G2**: P50 total ≤ 25 ms při 60 Hz a ≥ 58 fps při 1440p.

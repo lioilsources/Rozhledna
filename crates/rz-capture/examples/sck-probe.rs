@@ -94,6 +94,7 @@ fn main() -> Result<()> {
                 pixel_format: kCVPixelFormatType_32BGRA,
                 include_child_windows: children.map(|c| matches!(c, OnOff::On)),
                 shows_cursor: false,
+                min_interval_hz: None,
             };
             probe(ScCapture::window(id, scale, 7680, 4320, 60, opts)?, secs, dump)?;
         }

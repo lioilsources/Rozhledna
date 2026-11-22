@@ -211,6 +211,8 @@ pub struct ScOptions {
     /// `SCStreamConfiguration.includeChildWindows` (menus, sheets, popovers); `None` = system default.
     pub include_child_windows: Option<bool>,
     pub shows_cursor: bool,
+    /// `minimumFrameInterval` = 1/N s. `None` = 1/fps, `Some(0)` = no limit (kCMTimeZero).
+    pub min_interval_hz: Option<u32>,
 }
 
 impl Default for ScOptions {
@@ -219,6 +221,7 @@ impl Default for ScOptions {
             pixel_format: kCVPixelFormatType_420YpCbCr8BiPlanarVideoRange,
             include_child_windows: None,
             shows_cursor: false,
+            min_interval_hz: None,
         }
     }
 }
@@ -305,7 +308,11 @@ impl ScCapture {
             c.setWidth(self.width as usize);
             c.setHeight(self.height as usize);
             c.setPixelFormat(self.opts.pixel_format);
-            c.setMinimumFrameInterval(CMTime::new(1, self.fps as i32));
+            let interval = match self.opts.min_interval_hz.unwrap_or(self.fps) {
+                0 => CMTime::new(0, 1),
+                hz => CMTime::new(1, hz as i32),
+            };
+            c.setMinimumFrameInterval(interval);
             c.setQueueDepth(5);
             c.setShowsCursor(self.opts.shows_cursor);
             if let Some(v) = self.opts.include_child_windows {

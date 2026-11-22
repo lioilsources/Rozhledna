@@ -55,6 +55,9 @@ struct Args {
     /// 0 = auto (0.12 bpp).
     #[arg(long, default_value_t = 0)]
     bitrate_kbps: u32,
+    /// SCK `minimumFrameInterval` = 1/N s (experiment T0.x fps); default = --fps, 0 = no limit.
+    #[arg(long)]
+    sck_interval_hz: Option<u32>,
     /// Testpattern size.
     #[arg(long, default_value = "2560x1440")]
     tp_size: String,
@@ -203,7 +206,10 @@ fn start_pipeline(
     let max_h = if sub.max_h > 0 { sub.max_h.min(args.max_h) } else { args.max_h };
     let fps = if sub.max_fps > 0 { sub.max_fps.min(args.fps) } else { args.fps };
     let mut capture: Box<dyn Capture> = match args.source {
-        SourceKind::Sck => Box::new(rz_capture::macos_sck::ScDisplayCapture::new(args.display, max_w, max_h, fps)?),
+        SourceKind::Sck => {
+            let opts = rz_capture::macos_sck::ScOptions { min_interval_hz: args.sck_interval_hz, ..Default::default() };
+            Box::new(rz_capture::macos_sck::ScCapture::display(args.display, max_w, max_h, fps, opts)?)
+        }
         SourceKind::Testpattern => {
             let (w, h) = parse_size(&args.tp_size)?;
             let (w, h) = rz_capture::macos_sck::fit(w, h, max_w, max_h);
