@@ -76,6 +76,11 @@ struct Args {
 
 fn main() -> Result<()> {
     let args = Args::parse();
+    // AppKit (cursor images, alerts) needs the shared NSApplication, created on the main thread.
+    #[cfg(target_os = "macos")]
+    if let Some(mtm) = objc2::MainThreadMarker::new() {
+        let _ = objc2_app_kit::NSApplication::sharedApplication(mtm);
+    }
     init_logging(args.log_file.as_deref())?;
     let dir = match &args.state_dir {
         Some(d) => d.clone(),

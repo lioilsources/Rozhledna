@@ -118,6 +118,18 @@ async fn two_streams_keyframe_unsubscribe() -> Result<()> {
     }
     assert_eq!(per.len(), 2);
 
+    // Cursor: a CursorPos datagram for a streamed source arrives at least once a second (macOS).
+    #[cfg(target_os = "macos")]
+    {
+        let d = tokio::time::timeout(Duration::from_secs(3), conn.read_datagram()).await??;
+        match rz_proto::datagram::Datagram::decode(&d) {
+            Some(rz_proto::datagram::Datagram::CursorPos { source_id, .. }) => {
+                assert!(source_id == 1 || source_id == 2)
+            }
+            other => bail!("expected CursorPos, got {other:?}"),
+        }
+    }
+
     // RequestKeyframe on stream 1 → a later keyframe.
     let s1 = acks[0];
     let last = per[&s1].iter().map(|f| f.0).max().unwrap();

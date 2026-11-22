@@ -300,11 +300,37 @@ async fn stats_loop(conn: Connection, ctl: Control, secs: u64) -> Result<()> {
             match e.msg {
                 Some(Msg::Pong(p)) => s2.lock().unwrap().add(sample_from_pong(&p)),
                 Some(Msg::AgentStatus(s)) => print_status(&s),
+                Some(Msg::CursorShape(c)) => eprintln!(
+                    "  kurzor #{}: {}{}",
+                    c.shape_id,
+                    if c.kind.is_empty() { "vlastní" } else { &c.kind },
+                    if c.png.is_empty() {
+                        String::new()
+                    } else {
+                        format!(" ({} B PNG, hotspot {},{})", c.png.len(), c.hotspot_x, c.hotspot_y)
+                    }
+                ),
                 Some(Msg::StreamStats(s)) => eprintln!(
                     "  agent: {} fps sent, {} kb/s, dropped {}",
                     s.fps, s.bitrate_kbps, s.dropped_before_encode
                 ),
                 _ => {}
+            }
+        }
+    });
+    let c2 = conn.clone();
+    tokio::spawn(async move {
+        let mut last = Instant::now() - Duration::from_secs(1);
+        while let Ok(d) = c2.read_datagram().await {
+            if let Some(rz_proto::datagram::Datagram::CursorPos { source_id, x, y, shape_id, visible, .. }) =
+                rz_proto::datagram::Datagram::decode(&d)
+                && last.elapsed() >= Duration::from_secs(1)
+            {
+                last = Instant::now();
+                eprintln!(
+                    "  kurzor: zdroj {source_id} ({x:.3}, {y:.3}) tvar #{shape_id} {}",
+                    if visible { "viditelný" } else { "mimo" }
+                );
             }
         }
     });

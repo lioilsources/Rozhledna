@@ -7,6 +7,7 @@
 //! - keeps the display awake while at least one stream runs;
 //! - advertises itself over mDNS.
 
+pub mod cursor;
 pub mod input;
 pub mod pipeline;
 pub mod sources;
@@ -89,6 +90,7 @@ pub struct Agent<U: AgentUi + 'static> {
     next_conn: AtomicU64,
     awake: Mutex<Weak<DisplayAwake>>,
     injector: SharedInjector,
+    cursor: Option<watch::Receiver<cursor::Sample>>,
     /// Source rectangles (global points) for mapping normalized input coordinates; refreshed on every listing.
     rects: Rects,
     /// Bumped whenever the set of hubs or their streams changes (tray refresh).
@@ -105,8 +107,13 @@ impl<U: AgentUi + 'static> Agent<U> {
         ui: U,
         injector: Box<dyn rz_input::Injector>,
     ) -> Arc<Self> {
-        let info =
-            LocalInfo { name: name.into(), is_agent: true, is_hub: false, features: vec!["agent_status".into()] };
+        let info = LocalInfo {
+            name: name.into(),
+            is_agent: true,
+            is_hub: false,
+            features: vec!["agent_status".into(), "cursor_shapes".into()],
+        };
+        let cursor = cursor::start();
         Arc::new(Self {
             identity,
             info,
@@ -118,6 +125,7 @@ impl<U: AgentUi + 'static> Agent<U> {
             next_conn: AtomicU64::new(1),
             awake: Mutex::new(Weak::new()),
             injector: Arc::new(Mutex::new(injector)),
+            cursor,
             rects: Arc::new(Mutex::new(HashMap::new())),
             changed: watch::channel(0).0,
         })
@@ -282,6 +290,11 @@ impl<U: AgentUi + 'static> Agent<U> {
         let (tx, mut rx) = ctl.split();
         let ctl = Arc::new(tokio::sync::Mutex::new(tx));
         let status_task = tokio::spawn(status_loop(ctl.clone()));
+        let streamed: Arc<Mutex<HashMap<u32, u64>>> = Arc::default();
+        let cursor_task = self
+            .cursor
+            .clone()
+            .map(|rx| tokio::spawn(cursor_loop(rx, conn.clone(), ctl.clone(), streamed.clone(), self.rects.clone())));
         let mut streams: HashMap<u32, Pipeline> = HashMap::new();
         let mut next_stream = 1u32;
         let res: Result<()> = async {
@@ -322,6 +335,7 @@ impl<U: AgentUi + 'static> Agent<U> {
                             Err(e) => Msg::Error(e),
                         };
                         reply(m).await?;
+                        *streamed.lock().unwrap() = streams.iter().map(|(k, p)| (*k, p.source_id)).collect();
                         self.set_streams(conn_id, streams.len());
                     }
                     Msg::UpdateSubscription(u) => {
@@ -356,10 +370,12 @@ impl<U: AgentUi + 'static> Agent<U> {
                             }
                         };
                         reply(m).await?;
+                        *streamed.lock().unwrap() = streams.iter().map(|(k, p)| (*k, p.source_id)).collect();
                         self.set_streams(conn_id, streams.len());
                     }
                     Msg::Unsubscribe(u) => {
                         streams.remove(&u.stream_id);
+                        *streamed.lock().unwrap() = streams.iter().map(|(k, p)| (*k, p.source_id)).collect();
                         self.set_streams(conn_id, streams.len());
                     }
                     Msg::RequestKeyframe(rk) => {
@@ -375,6 +391,9 @@ impl<U: AgentUi + 'static> Agent<U> {
         }
         .await;
         status_task.abort();
+        if let Some(t) = cursor_task {
+            t.abort();
+        }
         drop(streams);
         res
     }
@@ -428,6 +447,55 @@ fn error(code: u32, message: String) -> pb::Error {
 
 fn error_msg(code: u32, message: String) -> Msg {
     Msg::Error(error(code, message))
+}
+
+/// Sends the cursor to one hub: `CursorShape` (control, once per shape) and a `CursorPos` datagram per streamed
+/// source on every change (≤ 60 Hz), position normalized to that source, `visible` when inside it.
+async fn cursor_loop(
+    mut rx: watch::Receiver<cursor::Sample>,
+    conn: Connection,
+    ctl: Arc<tokio::sync::Mutex<ControlSender>>,
+    streamed: Arc<Mutex<HashMap<u32, u64>>>,
+    rects: Rects,
+) {
+    use rz_proto::datagram::Datagram;
+    let mut sent_shapes = std::collections::HashSet::new();
+    let mut seq = 0u32;
+    // Also resend once a second: a hub that just subscribed must learn where a resting cursor is.
+    let mut heartbeat = tokio::time::interval(Duration::from_secs(1));
+    loop {
+        tokio::select! {
+            r = rx.changed() => if r.is_err() { return },
+            _ = heartbeat.tick() => {}
+        }
+        let s = rx.borrow_and_update().clone();
+        let mut sources: Vec<u64> = streamed.lock().unwrap().values().copied().collect();
+        if sources.is_empty() {
+            continue;
+        }
+        sources.sort_unstable();
+        sources.dedup();
+        let shape_id = s.shape.as_ref().map_or(0, |sh| sh.id);
+        if let Some(sh) = &s.shape
+            && sent_shapes.insert(sh.id)
+            && ctl.lock().await.send(Msg::CursorShape(sh.to_pb())).await.is_err()
+        {
+            return;
+        }
+        for src in sources {
+            let Some(r) = rects.lock().unwrap().get(&src).copied() else { continue };
+            if r.w <= 0.0 || r.h <= 0.0 {
+                continue;
+            }
+            let (nx, ny) = ((s.x - r.x) / r.w, (s.y - r.y) / r.h);
+            let visible = (0.0..1.0).contains(&nx) && (0.0..1.0).contains(&ny);
+            seq = seq.wrapping_add(1);
+            let d = Datagram::CursorPos { source_id: src, seq, x: nx as f32, y: ny as f32, shape_id, visible };
+            if conn.send_datagram(d.encode().into()).is_err() {
+                return;
+            }
+        }
+    }
 }
 
 /// Sends `AgentStatus` now and whenever it changes (polled every 2 s).

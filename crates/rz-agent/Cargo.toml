@@ -24,8 +24,8 @@ quinn.workspace = true
 tray-icon.workspace = true
 tao.workspace = true
 objc2.workspace = true
-objc2-foundation = { workspace = true, features = ["NSString"] }
-objc2-app-kit = { workspace = true, features = ["NSAlert", "NSApplication", "NSRunningApplication", "NSResponder", "NSButton", "NSControl", "NSView", "NSWorkspace"] }
+objc2-foundation = { workspace = true, features = ["NSString", "NSData", "NSGeometry", "NSDictionary"] }
+objc2-app-kit = { workspace = true, features = ["NSAlert", "NSApplication", "NSRunningApplication", "NSResponder", "NSButton", "NSControl", "NSView", "NSWorkspace", "NSCursor", "NSImage", "NSImageRep", "NSBitmapImageRep", "NSGraphics"] }
 
 [dev-dependencies]
 rz-input.workspace = true

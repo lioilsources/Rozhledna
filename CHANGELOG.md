@@ -67,3 +67,8 @@
 - Protokol: zdokumentované konvence `Key` / `Button` / `Scroll` (znaménka, jednotky, fáze).
 - `rzctl poke`: test injekce (kruh kurzorem, psaní přes HID i Unicode).
 - Testy: tabulka HID, modifikátory a release_all, mapování a drag, loopback vstup (klávesy, klik, datagramy, uvolnění při odpojení, uvolnění po tichu).
+
+### T1.4 Kurzor
+- `rz_agent::cursor`: vlákno 60 Hz pozice (`CGEventGetLocation`), 30 Hz tvar (`NSCursor.currentSystemCursor`, hash TIFF dat). Standardní kurzory AppKitu → `kind` (arrow, ibeam, pointer, crosshair, grab, grabbing, resize-h/v, not-allowed, copy), ostatní jako PNG + hotspot v pixelech.
+- Agent posílá hubu `CursorShape` (control, jednou za tvar) a `CursorPos` datagram pro každý sledovaný zdroj při změně a 1× za sekundu (normalizovaně ke zdroji, `visible` = uvnitř).
+- `rzctl stats` vypisuje tvar a pozici kurzoru; příklad `cursor-probe` (experiment).

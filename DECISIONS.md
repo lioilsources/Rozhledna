@@ -125,3 +125,10 @@ Plán: „> 2 framy neodeslané → drop před enkódováním + bitrate −20 %�
 - **Modifikátory jako `kCGEventFlagsChanged`** s plnými příznaky včetně levé/pravé strany. Každý event nese příznaky podle stavu tohoto hubu, ne podle globálního stavu systému.
 - **Scroll:** kladné `dy` = kolečko od uživatele (CG konvence), `precise` = pixely + `NSEventPhase`. Převod z Flutteru (`scrollDelta.dy` kladné = dolů) dělá hub.
 - **Bez Accessibility** macOS eventy tiše zahodí. Agent to hlásí v `AgentStatus.accessibility` a v menu baru.
+
+## 2026-11-22 — T1.4: kurzor (OVĚŘENO experimentem)
+
+- `+[NSCursor currentSystemCursor]` je v SDK deprecated („v budoucí verzi vždy nil“), ale **na macOS 27.0.1 funguje**: `cursor-probe` vrátil systémový kurzor 28×40 pt, hotspot (5,5), a jeho hash TIFF dat se shoduje s `NSCursor.arrowCursor`. Poznávání standardních tvarů podle hashe tedy funguje.
+- Bez `NSApplication` vrací `arrowCursor` NULL (objc2 panikaří), proto agent vytváří `NSApplication.sharedApplication` v `main` i v headless režimu a tracker má `catch_unwind`.
+- Když `currentSystemCursor` jednou začne vracet nil, tracker to zaloguje a posílá jen pozici (hub ukáže šipku). Náhrada: sledovat kurzor z ScreenCaptureKit (`showsCursor=true` do druhého, malého streamu) nebo privátní `CGSCopyRegisteredCursorImages`. Zatím se nedělá.
+- Ověřit ručně na M2: tvar se mění v jiných aplikacích (I-beam nad textem, ruka nad odkazem).
