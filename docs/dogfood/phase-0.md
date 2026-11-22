@@ -53,3 +53,10 @@ Pokud `cargo` není v PATH: `export PATH=/opt/homebrew/opt/rustup/bin:$PATH`.
 - [ ] 4K FOCUS: strop 1440p@60 / 4K@45 / test HEVC (DECISIONS.md, zjištění 1).
 - [ ] Developer ID certifikát pro notarizaci (T1.9).
 - [ ] Otevřené body O1 (název), O3, O4, O6.
+
+## Zjištění z dogfoodu pro Fázi 1 (2026-11-22, MacBook + M2 přes iPhone hotspot)
+- **Zamčená/uspaná obrazovka agenta:** SCShareableContent nevrací displej → `Subscribe` selže „display not found“. Agent má hlásit stav `locked/asleep` (ne chybu) a hub ho ukázat na dlaždici; po odemčení se sám znovu přihlásit k odběru.
+- **Flutter spike po chybě Subscribe nekončí** (visí do timeoutu), nativní viewer skončí hned. Ve Fázi 1 musí FFI chyby spojení/odběru propagovat do UI.
+- **Decode při shlucích po Wi-Fi:** dekódovat vše, zobrazit jen poslední frame (LATENCY.md, hotspot).
+- **SCK `minimumFrameInterval`:** nikdy ne ≈1/fps; 1/(2×fps) + throttle v agentovi (LATENCY.md, experiment).
+- **Statická plocha = skoro žádné framy** — na idle spojení spoléhat na keepalive; měřicí scény musí mít pohyb.
