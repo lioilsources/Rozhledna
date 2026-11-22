@@ -49,6 +49,7 @@ Hodnota **57,5 fps není vada pipeline:** SCK posílá frame jen při změně ob
 | 1/120 | **60,1** | **3,3 / 5,6** / 159 | −0,7 / 0,5 | 61 fps | 0 |
 | 0 (bez limitu) | **60,1** | **3,3 / 5,3** / 165 | −0,7 / 0,5 | 60 fps | 1 |
 | 1/66 (fps×1,1) | 54,9 ✗ | 4,2 / 15,5 | — / 9,0 | občas 30 fps | 1 |
+| **1/120 + throttle v agentovi (výchozí od 11ef4fb)** | **60,2** | **4,0 / 6,5** / 196 | −0,1 / 1,5 | 60 fps | 1 |
 
 Ve všech bězích 0 keyframe requestů a 0 přeskočených framů. CSV jsou na M2 v `run/m2-sck-hz-*.csv`.
 
@@ -58,7 +59,8 @@ Ve všech bězích 0 keyframe requestů a 0 přeskočených framů. CSV jsou na 
 3. **Total P50 3,3 ms** znamená, že hub ukáže frame ~3,3 ms po tom, co ho ukázal displej agenta (bez kompozice a scanoutu hubu).
 4. **Interval 1/66 je horší:** SCK s intervalem 15,15 ms občas bere jen každý druhý vsync. Interval kolem 1/fps je nespolehlivý, takže limit patří do agenta.
    **Nové výchozí nastavení agenta:** SCK `1/(2×fps)` + vlastní throttle na fps (frame se přijme, když od předchozího uplynulo ≥ ¾ intervalu).
-   Ověřeno: loopback testpattern 60,9 fps. Čeká se na ověření na M2 (60 Hz) a na 120Hz displeji (MacBook ProMotion, potřebuje Screen Recording).
+   Ověřeno: loopback testpattern 60,9 fps a M2 60 Hz 60,2 fps (network 0,5 / 1,0, decode 3,3 / 3,9, present 0,3 / 0,4).
+   Proti hz=0 je total o ~0,7 ms horší (throttle občas pustí frame z pozdějšího vsyncu), ale pořád ~6 ms pod původním 1/60. Na 120Hz displeji zatím neověřeno (MacBook ProMotion, potřebuje Screen Recording).
 
 ### Wi-Fi, dva Macy — orientační (drát není k dispozici, 2026-11-22)
 
