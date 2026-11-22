@@ -21,7 +21,9 @@ Odkliká Ol1n. Agent = Mac mini M2, hub = MacBook (nebo naopak). Fáze 2 začne 
 - [ ] Psaní včetně české klávesnice: „ěščřžýáíé ů ú“, velká písmena, Shift+šipky, ⌘C / ⌘V na M2.
 - [ ] Kurzor na hubu mění tvar podle M2 (I-beam nad textem, ruka nad odkazem).
 - [ ] Klik mimo dlaždici / přepnutí na jinou aplikaci → na M2 nezůstane stisknutý modifikátor.
-- [ ] ⌘Tab v dlaždici **zatím nefunguje** (grab je T1.7).
+- [ ] Grab: hub potřebuje Zpřístupnění (System Settings → Soukromí → Zpřístupnění → Rozhledna). Ve fokusované dlaždici ⌃⌥↩ (nebo ikona klávesnice) → oranžový rámeček.
+- [ ] V grabu ⌘Tab přepíná aplikace **na M2** (ne na MacBooku), ⌘Space otevře Spotlight na M2, ⌘Q zavře aplikaci na M2. ⌃⌥⎋ grab uvolní. (DECISIONS T1.7: OVĚŘIT, že session tap dostane ⌘Tab.)
+- [ ] Přepnutí na jinou aplikaci na MacBooku (myší) grab ukončí.
 
 ## 4. Odolnost (akceptace)
 - [ ] Uspat M2 (nebo zamknout obrazovku) → dlaždice ukáže „obrazovka zamčená / odpojeno — zkouším znovu“; po odemčení se obraz sám vrátí.
