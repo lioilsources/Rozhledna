@@ -41,6 +41,25 @@ viewer na 127.0.0.1:47470, 60 s, v prohlížeči běží `counter.html`.
 Max total 168,7 ms (první frame, inicializace). Encode je proti testpatternu nižší (6,0 vs 11,2 ms), protože frame má o 25 % méně pixelů a obsah se mezi snímky mění málo.
 Hodnota **57,5 fps není vada pipeline:** SCK posílá frame jen při změně obsahu, takže na statických místech plochy fps klesá. Pro G2 je potřeba scéna, která se mění v každém framu (video nebo `counter.html` přes celou obrazovku).
 
+#### Experiment `--sck-interval-hz` (M2 lokálně, counter fullscreen, 2560×1080, displej 60 Hz, 60 s na běh)
+
+| `minimumFrameInterval` | fps | total P50/P95/max | „encode“ P50/P95 | agent sent | dropped_before_encode |
+|---|---|---|---|---|---|
+| 1/60 (dosavadní výchozí) | 57,2 | 10,1 / 16,1 / 181 | 6,1 / 11,2 | 57 fps | 1 |
+| 1/120 | **60,1** | **3,3 / 5,6** / 159 | −0,7 / 0,5 | 61 fps | 0 |
+| 0 (bez limitu) | **60,1** | **3,3 / 5,3** / 165 | −0,7 / 0,5 | 60 fps | 1 |
+| 1/66 (fps×1,1) | 54,9 ✗ | 4,2 / 15,5 | — / 9,0 | občas 30 fps | 1 |
+
+Ve všech bězích 0 keyframe requestů a 0 přeskočených framů. CSV jsou na M2 v `run/m2-sck-hz-*.csv`.
+
+1. **Limit přesně 1/fps zahazuje framy.** Když dva vsyncy přijdou těsně pod 16,67 ms, SCK frame vynechá. S 1/120 nebo 0 je to 60 fps.
+2. **Proč je „encode“ záporný:** `capture_ts` je `SCStreamFrameInfoDisplayTime`, okamžik, kdy se frame **objeví** na displeji agenta. Bez limitu SCK předá frame ~7 ms (encode ≈ 6 ms + 0,7) **před** tímto okamžikem, protože compositor kreslí dopředu. S limitem 1/60 ho předává až ~1 frame po něm.
+   Segment „encode“ tedy neměří čistou dobu enkódování. **Total je ale měřený proti okamžiku zobrazení na agentovi**, takže je to správná reference pro glass-to-glass a zlepšení o ~7 ms je skutečné. Potvrdí kamera.
+3. **Total P50 3,3 ms** znamená, že hub ukáže frame ~3,3 ms po tom, co ho ukázal displej agenta (bez kompozice a scanoutu hubu).
+4. **Interval 1/66 je horší:** SCK s intervalem 15,15 ms občas bere jen každý druhý vsync. Interval kolem 1/fps je nespolehlivý, takže limit patří do agenta.
+   **Nové výchozí nastavení agenta:** SCK `1/(2×fps)` + vlastní throttle na fps (frame se přijme, když od předchozího uplynulo ≥ ¾ intervalu).
+   Ověřeno: loopback testpattern 60,9 fps. Čeká se na ověření na M2 (60 Hz) a na 120Hz displeji (MacBook ProMotion, potřebuje Screen Recording).
+
 ### Wi-Fi, dva Macy — orientační (drát není k dispozici, 2026-11-22)
 
 Ve skutečnosti **iPhone Personal Hotspot**: MacBook přes iPhone USB (en8 172.20.10.4), M2 přes Wi-Fi hotspotu (172.20.10.3). Ping 4,6–93 ms. **Do brány G2 se nepočítá.**

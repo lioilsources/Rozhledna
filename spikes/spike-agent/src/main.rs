@@ -55,7 +55,8 @@ struct Args {
     /// 0 = auto (0.12 bpp).
     #[arg(long, default_value_t = 0)]
     bitrate_kbps: u32,
-    /// SCK `minimumFrameInterval` = 1/N s (experiment T0.x fps); default = --fps, 0 = no limit.
+    /// SCK `minimumFrameInterval` = 1/N s; default 2×fps, 0 = no limit. Exactly 1/fps loses frames
+    /// (57 instead of 60 fps), 1.1×fps is worse (55). The agent throttles to fps itself (see LATENCY.md).
     #[arg(long)]
     sck_interval_hz: Option<u32>,
     /// Testpattern size.
@@ -207,7 +208,8 @@ fn start_pipeline(
     let fps = if sub.max_fps > 0 { sub.max_fps.min(args.fps) } else { args.fps };
     let mut capture: Box<dyn Capture> = match args.source {
         SourceKind::Sck => {
-            let opts = rz_capture::macos_sck::ScOptions { min_interval_hz: args.sck_interval_hz, ..Default::default() };
+            let hz = args.sck_interval_hz.unwrap_or(2 * fps);
+            let opts = rz_capture::macos_sck::ScOptions { min_interval_hz: Some(hz), ..Default::default() };
             Box::new(rz_capture::macos_sck::ScCapture::display(args.display, max_w, max_h, fps, opts)?)
         }
         SourceKind::Testpattern => {
@@ -243,7 +245,18 @@ fn start_pipeline(
     // Capture callback: runs on the capture thread / SCK queue.
     let sh = shared.clone();
     let mut input_no = 0u64;
+    // Own throttle to fps: SCK delivers up to the display rate (120 Hz on ProMotion). A frame is accepted once
+    // ¾ of the interval has passed since the previous one, so vsync jitter on 60 Hz loses nothing and every
+    // second frame is taken on 120 Hz.
+    let min_gap_ns = 750_000_000 / fps.max(1) as u64;
+    let mut last_ts: Option<u64> = None;
     capture.start(Box::new(move |frame| {
+        if let Some(t) = last_ts
+            && frame.capture_ts_ns.saturating_sub(t) < min_gap_ns
+        {
+            return;
+        }
+        last_ts = Some(frame.capture_ts_ns);
         let mut guard = sh.encoder.lock().unwrap();
         let Some(enc) = guard.as_mut() else { return };
         if sh.unsent.load(Ordering::Acquire) > 2 {

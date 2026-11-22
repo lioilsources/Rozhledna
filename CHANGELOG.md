@@ -28,3 +28,4 @@
 
 ### Dogfood M2
 - `spike-agent --sck-interval-hz N` (`ScOptions.min_interval_hz`): experiment s `minimumFrameInterval` u SCK. Na M2 se reálná plocha drží na ~57 fps místo 60.
+- Výchozí SCK interval 1/(2×fps) + throttle na fps v agentovi (≥ ¾ intervalu mezi framy).
