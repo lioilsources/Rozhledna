@@ -12,6 +12,7 @@ typealias RzFrameCallback = @convention(c) (UnsafeMutableRawPointer?, UInt64) ->
 @_silgen_name("rz_hub_new") func rz_hub_new(
   _ stateDir: UnsafePointer<CChar>?, _ name: UnsafePointer<CChar>?, _ onFrame: RzFrameCallback,
   _ ctx: UnsafeMutableRawPointer?) -> OpaquePointer?
+@_silgen_name("rz_hub_free") func rz_hub_free(_ h: OpaquePointer?)
 @_silgen_name("rz_hub_fingerprint") func rz_hub_fingerprint(_ h: OpaquePointer?) -> UnsafeMutablePointer<CChar>?
 @_silgen_name("rz_hub_next_event") func rz_hub_next_event(_ h: OpaquePointer?, _ timeoutMs: UInt32)
   -> UnsafeMutablePointer<CChar>?
@@ -160,6 +161,7 @@ final class RzHubPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   fileprivate var hub: OpaquePointer?
   private var sink: FlutterEventSink?
   private var poller: Thread?
+  private let pollerDone = DispatchSemaphore(value: 0)
   private let lock = NSLock()
   private var textures: [UInt64: (RzTileTexture, Int64)] = [:]
   private let grab = KeyGrab()
@@ -173,6 +175,16 @@ final class RzHubPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     NotificationCenter.default.addObserver(
       forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
     ) { [weak self] _ in self?.grab.stop(reason: "inactive") }
+    // ⌘Q: release grabbed keys and close agent connections cleanly (agents would otherwise wait 10 s).
+    NotificationCenter.default.addObserver(
+      forName: NSApplication.willTerminateNotification, object: nil, queue: .main
+    ) { [weak self] _ in
+      guard let self = self, let h = self.hub else { return }
+      self.grab.stop(reason: nil)
+      self.hub = nil  // the poller leaves its loop after the current wait (≤ 250 ms)…
+      if self.poller != nil { _ = self.pollerDone.wait(timeout: .now() + 1) }  // …and only then is `h` freed
+      rz_hub_free(h)
+    }
   }
 
   static func register(with registrar: FlutterPluginRegistrar) {
@@ -204,6 +216,7 @@ final class RzHubPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
 
   private func startPoller() {
     guard poller == nil, let h = hub else { return }
+    let done = pollerDone
     let t = Thread { [weak self] in
       while let s = self, s.hub != nil {
         guard let p = rz_hub_next_event(h, 250) else { continue }
@@ -211,6 +224,7 @@ final class RzHubPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
         rz_hub_free_string(p)
         DispatchQueue.main.async { self?.sink?(json) }
       }
+      done.signal()
     }
     t.name = "rz-hub-events"
     t.start()

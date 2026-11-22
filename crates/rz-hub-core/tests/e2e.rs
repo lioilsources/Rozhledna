@@ -49,6 +49,13 @@ fn start_agent(dir: &std::path::Path, bind: SocketAddr, null: &NullInjector) -> 
     Ok((RunningAgent { rt, ep }, addr))
 }
 
+struct Elapsed(String, Instant);
+impl Drop for Elapsed {
+    fn drop(&mut self) {
+        eprintln!("  {:<28} {:>6.2} s", self.0, self.1.elapsed().as_secs_f32());
+    }
+}
+
 #[derive(Default)]
 struct Frames {
     ok: AtomicU32,
@@ -57,6 +64,7 @@ struct Frames {
 
 fn wait<F: FnMut() -> bool>(what: &str, secs: u64, mut f: F) -> Result<()> {
     let t = Instant::now();
+    let _guard = Elapsed(what.to_string(), t);
     while !f() {
         if t.elapsed() > Duration::from_secs(secs) {
             bail!("timed out waiting for {what}");
@@ -133,7 +141,10 @@ fn pair_stream_input_reconnect() -> Result<()> {
     // Agent restart (same identity and trust store, same port) → reconnect and resubscribe on its own.
     let connected_before = count(&|e| matches!(e, Event::AgentState { state: AgentState::Connected, .. }));
     let RunningAgent { rt, ep } = agent;
+    // Graceful quit (menu „Ukončit“): the close frame reaches the hub, which notices at once (an abrupt loss
+    // would take the 10 s idle timeout).
     ep.close(0u32.into(), b"restart");
+    rt.block_on(async { tokio::time::timeout(Duration::from_secs(1), ep.wait_idle()).await.ok() });
     drop(ep);
     drop(rt);
     wait("disconnect noticed", 15, || {
@@ -146,6 +157,21 @@ fn pair_stream_input_reconnect() -> Result<()> {
     })?;
     assert_eq!(count(&|e| matches!(e, Event::PairCode { .. })), 1, "reconnect needs no new pairing");
     wait("frames after reconnect", 10, || ok(t1) >= before1 + 15 && ok(t2) >= before2 + 15)?;
+
+    // Resize a tile (UpdateSubscription restarts the stream under the same id: new frame 0, DISCONTINUITY).
+    let before = ok(t1);
+    hub.update_tile(t1, TileParams { max_w: 672, max_h: 672, ..params(1) })?;
+    wait("frames after resize", 10, || ok(t1) >= before + 15)?;
+    assert!(has(&|e| matches!(e, Event::TileState { tile, w: 672, h: 378, .. } if *tile == t1)));
+
+    // A new stream epoch (reconnect, resize) must not stall on the old epoch's reorder floor: no keyframe
+    // requests, nothing skipped.
+    std::thread::sleep(Duration::from_millis(1200));
+    let (kf, skipped) = events.lock().unwrap().iter().fold((0, 0), |acc, e| match e {
+        Event::TileStats { keyframe_requests, skipped, .. } => (acc.0 + keyframe_requests, acc.1 + skipped),
+        _ => acc,
+    });
+    assert_eq!((kf, skipped), (0, 0), "keyframe requests / skipped frames after new epochs");
 
     let bad: u32 = frames.lock().unwrap().values().map(|f| f.bad.load(Ordering::Relaxed)).sum();
     assert_eq!(bad, 0, "every decoded frame carries a readable frame number");

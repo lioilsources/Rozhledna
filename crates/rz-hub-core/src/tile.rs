@@ -67,6 +67,7 @@ pub struct Tile {
     pub frames: mpsc::Sender<Incoming>,
     /// Frames below are useless; set by the decode thread, read by the receive side to `stop()` streams early.
     floor: AtomicU64,
+    floor_ts: AtomicU64,
     waiting_key: AtomicBool,
     pub cursor: Mutex<CursorState>,
     /// Agent-side stats (from `StreamStats`).
@@ -81,7 +82,11 @@ impl Tile {
         if hdr.flags & FLAG_DISCONTINUITY != 0 {
             return true;
         }
-        if hdr.frame_no < self.floor.load(Ordering::Acquire) {
+        // Below the floor *and* not newer than what was released: really stale. A newer frame with a low number
+        // belongs to a new epoch (reconnect / resize) whose first frame has not been processed yet.
+        let ts = hdr.capture_ts_ns;
+        if hdr.frame_no < self.floor.load(Ordering::Acquire) && (ts == 0 || ts <= self.floor_ts.load(Ordering::Acquire))
+        {
             return false;
         }
         hdr.is_keyframe() || !self.waiting_key.load(Ordering::Acquire)
@@ -113,6 +118,7 @@ pub fn spawn(
         params: Mutex::new(params),
         frames: tx,
         floor: AtomicU64::new(0),
+        floor_ts: AtomicU64::new(0),
         waiting_key: AtomicBool::new(false),
         cursor: Mutex::new(CursorState::default()),
         agent_fps: AtomicU32::new(0),
@@ -150,7 +156,8 @@ fn decode_loop(
             Ok(inc) => {
                 let (n, key, disc) = (inc.hdr.frame_no, inc.hdr.is_keyframe(), inc.hdr.flags & FLAG_DISCONTINUITY != 0);
                 stats.bytes += inc.payload.len() as u64;
-                reorder.push(n, key, disc, inc, Instant::now());
+                let ts = inc.hdr.capture_ts_ns;
+                reorder.push_ts(n, key, disc, ts, inc, Instant::now());
             }
             Err(mpsc::RecvTimeoutError::Timeout) => {}
             Err(mpsc::RecvTimeoutError::Disconnected) => break,
@@ -212,6 +219,7 @@ fn decode_loop(
         }
         let Some(t) = tile.upgrade() else { break };
         t.floor.store(reorder.floor(), Ordering::Release);
+        t.floor_ts.store(reorder.last_done_ts(), Ordering::Release);
         t.waiting_key.store(reorder.waiting_for_keyframe(), Ordering::Release);
         if stats_at.elapsed() >= Duration::from_secs(1) {
             let dt = stats_at.elapsed().as_secs_f32();

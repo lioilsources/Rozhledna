@@ -103,3 +103,7 @@
 - `cargo xtask notarize <app>`: ověří podpis Developer ID, zip → `notarytool submit --wait` (profil `RZ_NOTARY_PROFILE`) → `stapler staple` → `spctl`. Bez Developer ID skončí srozumitelnou chybou.
 - Podpis Developer ID se dělá s bezpečným časovým razítkem (`--timestamp`, nutné pro notarizaci), Apple Development dál bez (rychlé lokální buildy).
 - README: rychlý start Fáze 1.
+
+### Zpevnění Fáze 1
+- **Oprava:** nová epocha streamu (reconnect, změna velikosti dlaždice) se zasekla na „floor“ staré epochy — framy 1, 2… nové epochy se zahodily, než se zpracoval frame 0, a hub si řekl o keyframe. Reorder teď rozlišuje epochy podle `capture_ts` (pozdní framy staré epochy pryč, předčasné framy nové epochy se ponechají), `Tile::wants` nezahodí frame novější, než co bylo zobrazeno. Test e2e: po reconnectu i po změně velikosti 0 žádostí o keyframe, 0 přeskočených.
+- **Oprava:** ukončení agenta (menu) i hubu (⌘Q) neposlalo CONNECTION_CLOSE → druhá strana si všimla až po 10 s idle timeoutu. Agent i hub teď před koncem počkají, až se close odešle; hub uvolní jádro při `willTerminate` (vlákno událostí skončí dřív, než se jádro uvolní).

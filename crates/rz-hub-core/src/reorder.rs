@@ -22,7 +22,14 @@ pub enum ReorderEvent<T> {
 pub struct Reorder<T> {
     next: Option<u64>,
     last_done: Option<u64>,
-    pending: BTreeMap<u64, (bool, T)>,
+    /// Capture timestamp of the last released frame (0 = unknown).
+    last_done_ts: u64,
+    /// Capture timestamp of the current epoch's first frame (the DISCONTINUITY one).
+    epoch_ts: u64,
+    pending: BTreeMap<u64, (bool, u64, T)>,
+    /// Frames that look stale by number but are newer than anything released: probably the next epoch whose
+    /// DISCONTINUITY frame has not arrived yet (frames complete out of order).
+    early: BTreeMap<u64, (bool, u64, T)>,
     waiting_since: Option<Instant>,
     deadline: Duration,
     want_request: bool,
@@ -33,20 +40,45 @@ impl<T> Reorder<T> {
         Self {
             next: None,
             last_done: None,
+            last_done_ts: 0,
+            epoch_ts: 0,
             pending: BTreeMap::new(),
+            early: BTreeMap::new(),
             waiting_since: None,
             deadline: (frame_interval * 2).max(Duration::from_millis(40)),
             want_request: false,
         }
     }
 
-    pub fn push(&mut self, frame_no: u64, keyframe: bool, discontinuity: bool, item: T, _now: Instant) {
+    /// Without timestamps (tests, sources without clocks): epochs are told apart only by DISCONTINUITY.
+    pub fn push(&mut self, frame_no: u64, keyframe: bool, discontinuity: bool, item: T, now: Instant) {
+        self.push_ts(frame_no, keyframe, discontinuity, 0, item, now)
+    }
+
+    /// `ts`: the frame's capture timestamp (agent clock, monotonic). A new epoch (reconnect, resize) restarts frame
+    /// numbers; timestamps tell its frames from late frames of the previous epoch.
+    pub fn push_ts(&mut self, frame_no: u64, keyframe: bool, discontinuity: bool, ts: u64, item: T, _now: Instant) {
         if discontinuity {
-            // New stream epoch (agent restarted the encoder): frame numbers restart.
-            self.pending.clear();
+            if ts != 0 && ts < self.epoch_ts {
+                return; // the first frame of an older epoch arriving late
+            }
+            // New epoch: drop everything older, keep frames of this epoch that already arrived.
+            self.pending.retain(|_, (_, t, _)| ts != 0 && *t >= ts);
+            let early = std::mem::take(&mut self.early);
+            for (n, v) in early {
+                if ts != 0 && v.1 >= ts {
+                    self.pending.insert(n, v);
+                }
+            }
             self.next = None;
             self.last_done = None;
             self.waiting_since = None;
+            self.epoch_ts = ts;
+            self.pending.insert(frame_no, (keyframe, ts, item));
+            return;
+        }
+        if ts != 0 && ts < self.epoch_ts {
+            return; // late frame of the previous epoch
         }
         let stale = match (self.next, self.last_done) {
             (Some(nx), _) => frame_no < nx,
@@ -54,8 +86,16 @@ impl<T> Reorder<T> {
             (None, None) => false,
         };
         if !stale {
-            self.pending.insert(frame_no, (keyframe, item));
+            self.pending.insert(frame_no, (keyframe, ts, item));
+        } else if ts != 0 && ts > self.last_done_ts && self.early.len() < 64 {
+            self.early.insert(frame_no, (keyframe, ts, item));
         }
+    }
+
+    /// Capture timestamp of the last released frame (0 if unknown): a frame newer than this may belong to a new
+    /// epoch even if its number is below [`Reorder::floor`].
+    pub fn last_done_ts(&self) -> u64 {
+        self.last_done_ts
     }
 
     /// Frames below this number are useless (already decoded or skipped).
@@ -75,7 +115,7 @@ impl<T> Reorder<T> {
     }
 
     fn first_key_at_or_after(&self, n: u64) -> Option<u64> {
-        self.pending.range(n..).find(|(_, (k, _))| *k).map(|(n, _)| *n)
+        self.pending.range(n..).find(|(_, (k, _, _))| *k).map(|(n, _)| *n)
     }
 
     fn drop_below(&mut self, n: u64) -> u32 {
@@ -112,10 +152,11 @@ impl<T> Reorder<T> {
                     }
                 },
             };
-            if let Some((_, item)) = self.pending.remove(&nx) {
+            if let Some((_, ts, item)) = self.pending.remove(&nx) {
                 out.push(ReorderEvent::Ready(item));
                 self.next = Some(nx + 1);
                 self.last_done = Some(nx);
+                self.last_done_ts = self.last_done_ts.max(ts);
                 self.waiting_since = None;
                 continue;
             }
@@ -149,6 +190,28 @@ impl<T> Reorder<T> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn new_epoch_keeps_early_frames_and_drops_late_old_ones() {
+        let t = Instant::now();
+        let mut r = Reorder::new(Duration::from_millis(16));
+        // Epoch A: frames 0..=10 at ts 1000.., released.
+        for n in 0..=10u64 {
+            r.push_ts(n, n == 0, n == 0, 1000 + n, n, t);
+        }
+        assert_eq!(ready(&r.poll(t)).len(), 11);
+        // Epoch B (ts 5000..): frames 1 and 2 complete before frame 0; a late frame 11 of epoch A arrives too.
+        r.push_ts(1, false, false, 5001, 101, t);
+        r.push_ts(2, false, false, 5002, 102, t);
+        r.push_ts(11, false, false, 1011, 11, t); // old epoch, but newer than what was released: kept until B starts
+        r.push_ts(0, true, true, 5000, 100, t);
+        let ev = r.poll(t);
+        assert_eq!(ready(&ev), vec![100, 101, 102], "early frames of the new epoch are not lost");
+        assert!(!ev.iter().any(|e| matches!(e, ReorderEvent::RequestKeyframe(_) | ReorderEvent::Skipped(_))));
+        r.push_ts(12, false, false, 1012, 12, t); // late frame of epoch A after B started
+        r.push_ts(3, false, false, 5003, 103, t);
+        assert_eq!(ready(&r.poll(t)), vec![103]);
+    }
 
     fn ready(ev: &[ReorderEvent<u64>]) -> Vec<u64> {
         ev.iter().filter_map(|e| if let ReorderEvent::Ready(n) = e { Some(*n) } else { None }).collect()

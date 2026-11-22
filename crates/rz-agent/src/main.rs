@@ -332,7 +332,10 @@ mod tray {
                         }
                     }
                     Some(Action::Quit) => {
+                        // Let the network thread send CONNECTION_CLOSE, otherwise hubs notice only after the
+                        // 10 s idle timeout.
                         agent.disconnect_all();
+                        std::thread::sleep(Duration::from_millis(200));
                         *flow = ControlFlow::Exit;
                     }
                     None => {}

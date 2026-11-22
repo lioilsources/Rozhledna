@@ -246,9 +246,18 @@ impl Hub {
 
 impl Drop for Hub {
     fn drop(&mut self) {
-        for a in self.inner.agents.lock().unwrap().values() {
-            let _ = a.cmd.send(AgentCmd::Shutdown);
-        }
+        let n = {
+            let agents = self.inner.agents.lock().unwrap();
+            for a in agents.values() {
+                let _ = a.cmd.send(AgentCmd::Shutdown);
+            }
+            agents.len()
+        };
         self.inner.tiles.lock().unwrap().clear();
+        if n > 0 {
+            // Give the sessions a moment to send CONNECTION_CLOSE before the runtime goes away; otherwise agents
+            // notice only after the 10 s idle timeout.
+            std::thread::sleep(std::time::Duration::from_millis(150));
+        }
     }
 }
