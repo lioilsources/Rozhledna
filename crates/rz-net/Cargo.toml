@@ -14,9 +14,16 @@ tracing.workspace = true
 quinn.workspace = true
 rustls.workspace = true
 rcgen.workspace = true
+sha2.workspace = true
+hex.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+mdns-sd.workspace = true
+libc.workspace = true
 
 [dev-dependencies]
-tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+tracing-subscriber.workspace = true
 
 [lints]
 workspace = true

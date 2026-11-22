@@ -102,8 +102,12 @@ pub struct Hello {
 pub struct HelloAck {
     #[prost(bool, tag = "1")]
     pub paired: bool,
+    /// view, control, clipboard, window_control
     #[prost(string, repeated, tag = "2")]
     pub granted: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
+    /// who the agent is (name, os, codecs); sent also when unpaired
+    #[prost(message, optional, tag = "3")]
+    pub agent: ::core::option::Option<Hello>,
 }
 /// Pairing (SAS, plan 6.3). The hub asks; both sides show the 6-digit code; the agent answers.
 #[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]

@@ -31,3 +31,16 @@
 - Výchozí SCK interval 1/(2×fps) + throttle na fps v agentovi (≥ ¾ intervalu mezi framy).
 - Flutter spike: v automatickém režimu skončí hned po chybě spojení/odběru (dřív čekal na RZ_SPIKE_DURATION).
 - Flutter spike: report se flushne na stdout; dogfood příkaz má RZ_SPIKE_QUIT=1.
+
+## Unreleased — Fáze 1 (MVP zeď obrazovek)
+
+### T1.1 rz-net: identita, párování, discovery
+- `identity`: trvalý Ed25519 klíč + self-signed cert v `~/Library/Application Support/Rozhledna/<role>/` (soubory 0600, adresář 0700; `RZ_STATE_DIR` přepíše), otisk SHA-256, `node_id` = prvních 16 B otisku.
+- `trust`: trust store `trusted.json` (0600), oprávnění hubu na agentovi (výchozí vše, D9).
+- `tls`: vzájemné TLS 1.3 (`server_crypto_mtls`, `client_crypto(Some(id))`), verifiery pouští libovolný cert, ale kontrolují podpis handshaku.
+- `pair`: SAS 6 číslic z otisků + TLS exporteru `rozhledna-pair`.
+- `handshake`: Hello → HelloAck → (PairRequest → PairResult) na control streamu; `AgentUi`/`HubUi` traity; případ „agent hub zná, hub agenta ne“ potvrdí uživatel hubu.
+- Protokol: `HelloAck.agent` (Hello agenta — jméno, OS, kodeky; posílá se i nespárovanému hubu).
+- `discovery`: mDNS `_rozhledna._udp.local.` (mdns-sd), TXT `id name os v fp roles`, jen LAN adresy (`lan::is_lan`); příklad `mdns`.
+- `backoff`: 250 ms ×2 → 10 s, ±20 % jitter (reconnect smyčka přijde se SessionManagerem v T1.5).
+- Testy: loopback párování (první kontakt + shodný SAS, reconnect bez dotazu, odmítnutí, hub zapomněl agenta, klient bez certifikátu odmítnut).

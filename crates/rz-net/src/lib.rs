@@ -1,12 +1,22 @@
 //! QUIC transport for Rozhledna (plan 6.4).
 //!
-//! Phase 0 scope: dev self-signed certificate + insecure verifier (`--insecure-dev`),
-//! frame-per-stream video, length-prefixed control stream, clock sync.
-//! Identity, trust store and SAS pairing arrive in Phase 1 (T1.1).
+//! - Phase 0: ephemeral certificate, no client auth (`--insecure-dev`), frame-per-stream video, control stream,
+//!   clock sync.
+//! - Phase 1 (T1.1): persistent identity, mutual TLS, trust store, SAS pairing (`handshake`), mDNS discovery,
+//!   reconnect backoff.
 
+pub mod backoff;
 pub mod control;
+pub mod discovery;
+pub mod handshake;
+pub mod identity;
+pub mod lan;
+pub mod pair;
 pub mod tls;
+pub mod trust;
 pub mod video;
+
+pub use identity::{Fingerprint, Identity};
 
 use std::net::SocketAddr;
 use std::sync::Arc;
@@ -38,26 +48,42 @@ pub fn transport_config() -> TransportConfig {
     t
 }
 
-/// Server endpoint (agent side) with a dev self-signed certificate.
+/// Server endpoint (agent side) with an ephemeral certificate and no client auth (Phase 0, `--insecure-dev`).
 pub fn server_endpoint(bind: SocketAddr) -> Result<Endpoint> {
-    let id = tls::DevIdentity::generate()?;
-    let crypto = tls::server_crypto(&id)?;
+    let id = Identity::generate()?;
+    server_with(bind, tls::server_crypto(&id)?, &id)
+}
+
+/// Server endpoint that requires a client certificate (Phase 1 agent).
+pub fn server_endpoint_mtls(bind: SocketAddr, id: &Identity) -> Result<Endpoint> {
+    server_with(bind, tls::server_crypto_mtls(id)?, id)
+}
+
+fn server_with(bind: SocketAddr, crypto: rustls::ServerConfig, id: &Identity) -> Result<Endpoint> {
     let mut cfg = quinn::ServerConfig::with_crypto(Arc::new(QuicServerConfig::try_from(crypto)?));
     cfg.transport_config(Arc::new(transport_config()));
     let ep = Endpoint::server(cfg, bind).with_context(|| format!("bind {bind}"))?;
-    tracing::info!(fp = %id.fingerprint_hex(), "listening on {}", ep.local_addr()?);
+    tracing::info!(fp = %id.fingerprint.short(), "listening on {}", ep.local_addr()?);
     Ok(ep)
 }
 
-/// Client endpoint (hub side). `insecure_dev` accepts any server certificate.
-pub fn client_endpoint(insecure_dev: bool) -> Result<Endpoint> {
-    anyhow::ensure!(insecure_dev, "Phase 0 only supports --insecure-dev (pairing lands in Phase 1)");
-    let crypto = tls::insecure_client_crypto()?;
+/// Client endpoint (hub side) presenting `id` as its certificate (Phase 1 hub).
+pub fn client_endpoint_mtls(id: &Identity) -> Result<Endpoint> {
+    client_with(tls::client_crypto(Some(id))?)
+}
+
+fn client_with(crypto: rustls::ClientConfig) -> Result<Endpoint> {
     let mut cfg = quinn::ClientConfig::new(Arc::new(QuicClientConfig::try_from(crypto)?));
     cfg.transport_config(Arc::new(transport_config()));
     let mut ep = Endpoint::client("0.0.0.0:0".parse().unwrap())?;
     ep.set_default_client_config(cfg);
     Ok(ep)
+}
+
+/// Client endpoint (hub side). `insecure_dev` accepts any server certificate.
+pub fn client_endpoint(insecure_dev: bool) -> Result<Endpoint> {
+    anyhow::ensure!(insecure_dev, "without an identity only --insecure-dev is possible; use client_endpoint_mtls");
+    client_with(tls::insecure_client_crypto()?)
 }
 
 pub async fn connect(ep: &Endpoint, addr: SocketAddr) -> Result<Connection> {

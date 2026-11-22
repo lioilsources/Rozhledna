@@ -44,7 +44,11 @@ message Hello {
   repeated Codec encode_codecs = 9; repeated Codec decode_codecs = 10;
   repeated string features = 11;  // "per_window","window_control","clipboard","cursor_shapes","virtual_display","audio"
 }
-message HelloAck { bool paired = 1; repeated string granted = 2; } // view, control, clipboard, window_control
+message HelloAck {
+  bool paired = 1;
+  repeated string granted = 2;    // view, control, clipboard, window_control
+  Hello agent = 3;                // who the agent is (name, os, codecs); sent also when unpaired
+}
 
 // Pairing (SAS, plan 6.3). The hub asks; both sides show the 6-digit code; the agent answers.
 message PairRequest { string hub_name = 1; }

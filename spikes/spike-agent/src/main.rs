@@ -377,7 +377,7 @@ async fn session(conn: Connection, args: Arc<Args>) -> Result<()> {
             }
             Msg::Hello(h) => {
                 tracing::info!(name = h.name, os = h.os, app = h.app_version, "hello");
-                let ack = pb::HelloAck { paired: true, granted: vec!["view".into()] };
+                let ack = pb::HelloAck { paired: true, granted: vec!["view".into()], agent: None };
                 ctl.lock().await.reply(env.seq, Msg::HelloAck(ack)).await?;
             }
             Msg::ListSources(_) => {
