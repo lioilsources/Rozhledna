@@ -56,7 +56,7 @@ Pokud `cargo` není v PATH: `export PATH=/opt/homebrew/opt/rustup/bin:$PATH`.
 
 ## Zjištění z dogfoodu pro Fázi 1 (2026-11-22, MacBook + M2 přes iPhone hotspot)
 - **Zamčená/uspaná obrazovka agenta:** SCShareableContent nevrací displej → `Subscribe` selže „display not found“. Agent má hlásit stav `locked/asleep` (ne chybu) a hub ho ukázat na dlaždici; po odemčení se sám znovu přihlásit k odběru.
-- **Flutter spike po chybě Subscribe nekončí** (visí do timeoutu), nativní viewer skončí hned. Ve Fázi 1 musí FFI chyby spojení/odběru propagovat do UI.
+- **Flutter spike po chybě Subscribe nekončil** (čekal na RZ_SPIKE_DURATION). Opraveno ve spiku (skončí po chybě, ověřeno: nedostupná adresa → konec za 11 s místo 60). Ve Fázi 1 musí chyby dojít do UI.
 - **Decode při shlucích po Wi-Fi:** dekódovat vše, zobrazit jen poslední frame (LATENCY.md, hotspot).
 - **SCK `minimumFrameInterval`:** nikdy ne ≈1/fps; 1/(2×fps) + throttle v agentovi (LATENCY.md, experiment).
 - **Statická plocha = skoro žádné framy** — na idle spojení spoléhat na keepalive; měřicí scény musí mít pohyb.

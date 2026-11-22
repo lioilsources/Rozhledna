@@ -80,6 +80,12 @@ class _SpikePageState extends State<SpikePage> {
       _poll = Timer.periodic(const Duration(milliseconds: 250), (_) async {
         final s = await _channel.invokeMethod<String>('stats') ?? '';
         if (mounted) setState(() => _overlay = s);
+        // Connection/subscribe failure: in automated mode end right away instead of waiting for the duration.
+        if (s.contains('\nERROR:') && _env['RZ_SPIKE_AUTOSTART'] == '1') {
+          await _stop();
+          setState(() => _report = '$s\n$_report');
+          if (_env['RZ_SPIKE_QUIT'] == '1') await _channel.invokeMethod('quit');
+        }
       });
     } on PlatformException catch (e) {
       setState(() => _report = 'start failed: ${e.message}');
@@ -87,7 +93,9 @@ class _SpikePageState extends State<SpikePage> {
   }
 
   Future<void> _stop() async {
-    _poll?.cancel();
+    if (_poll == null) return; // not running (or already stopped after an error)
+    _poll!.cancel();
+    _poll = null;
     final r = await _channel.invokeMethod<String>('stop', {'csv': _env['RZ_SPIKE_CSV'] ?? ''}) ?? '';
     setState(() {
       _textureId = null;
