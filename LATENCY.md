@@ -52,7 +52,9 @@ Ve skutečnosti **iPhone Personal Hotspot**: MacBook přes iPhone USB (en8 172.2
 | SCK 2560×1080, nativní okno, counter fullscreen, 30 s | 6,9 / 12,5 | 4,1 / 42,2 | 3,5 / 14,1 | 0,2 / 0,4 | **15,9 / 67,9** | 57,8 | n=1686, 2,0 Mb/s, 0 keyframe requestů |
 | SCK 2560×1080, headless, counter fullscreen, 60 s | 8,1 / 13,1 | 4,4 / 43,4 | 3,7 / 13,3 | — | **17,3 / 65,8** | 57,1 | n=3199, 2 keyframe requesty, 15 přeskočených framů, min RTT 4,4 ms |
 
-Shrnutí hotspotu: P50 je jen o ~5 ms horší než lokálně, ale P95 je ~4× horší, a to kvůli jitteru sítě. Vyšší P95 u decode (13 vs 4,6 ms lokálně) je nejspíš čekání v reorder bufferu na pozdní framy; potvrdit z CSV.
+Shrnutí hotspotu: P50 je jen o ~5 ms horší než lokálně, ale P95 je ~4× horší, a to kvůli jitteru sítě. Vyšší P95 u decode (13 vs 4,6 ms lokálně) není pomalý dekodér. Je to fronta za předchozími framy (segment decode = `decode_done − recv`). Z CSV headless 60 s:
+z 288 framů s decode > 8 ms se jich 249 dekódovalo < 6 ms po předchozím framu (Wi-Fi doručí shluk framů naráz a sériový dekodér je zpracuje po ~3,5 ms).
+U 56 předchozí frame přišel později (čekání v reorder bufferu). Pro Fázi 1 z toho plyne: při shluku dekódovat všechno (P-framy na sobě závisí), ale zobrazit jen poslední.
 fps je stejné jako lokálně (~57), takže strop není v síti.
 
 ### Drátová LAN, dva Macy (Ol1n) — ČEKÁ
