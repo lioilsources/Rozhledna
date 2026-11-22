@@ -1,0 +1,121 @@
+// Rozhledna protocol v1. See ROZHLEDNA_PLAN.md, chapter 7.
+//
+// Control stream (first bidi stream opened by the hub): frames of `u32 LE length` + Envelope.
+// Input stream (uni, hub -> agent):                    frames of `u32 LE length` + InputEvent.
+// Preview stream (uni, agent -> hub):                  frames of `u32 LE length` + Preview.
+// Video: one uni stream per frame, 44 B binary header (rz-proto::frame) + Annex B payload.
+// Datagrams: binary, see rz-proto::datagram.
+
+syntax = "proto3";
+package rozhledna.v1;
+
+message Envelope {
+  uint64 seq = 1;
+  uint64 reply_to = 2;            // 0 = not a reply
+  oneof msg {
+    Hello hello = 10;             HelloAck hello_ack = 11;
+    PairRequest pair_request = 12; PairResult pair_result = 13;
+    Ping ping = 14;               Pong pong = 15;
+    ListSources list_sources = 20; SourceList source_list = 21;
+    SourceEvent source_event = 22; GetIcon get_icon = 23; Icon icon = 24;
+    Subscribe subscribe = 30;     SubscribeAck subscribe_ack = 31;
+    UpdateSubscription update_subscription = 32;
+    Unsubscribe unsubscribe = 33; RequestKeyframe request_keyframe = 34;
+    StreamStats stream_stats = 35;
+    PreviewSubscribe preview_subscribe = 40;
+    CursorShape cursor_shape = 50; LocalActivity local_activity = 51;
+    WindowCommand window_command = 60; WindowCommandResult window_command_result = 61;
+    ClipboardOffer clipboard_offer = 70; ClipboardRequest clipboard_request = 71;
+    ClipboardData clipboard_data = 72;
+    Error error = 99;
+  }
+}
+
+enum Os { OS_UNKNOWN = 0; MACOS = 1; LINUX = 2; WINDOWS = 3; }
+enum SourceKind { DISPLAY = 0; WINDOW = 1; }
+enum Tier { LIVE = 0; FOCUS = 1; }
+enum Codec { H264 = 0; HEVC = 1; AV1 = 2; }
+
+message Hello {
+  uint32 protocol = 1;            // = 1
+  bytes node_id = 2;              // 16 B UUID
+  string name = 3; Os os = 4; string os_version = 5; string app_version = 6;
+  bool is_agent = 7; bool is_hub = 8;
+  repeated Codec encode_codecs = 9; repeated Codec decode_codecs = 10;
+  repeated string features = 11;  // "per_window","window_control","clipboard","cursor_shapes","virtual_display","audio"
+}
+message HelloAck { bool paired = 1; repeated string granted = 2; } // view, control, clipboard, window_control
+
+// Pairing (SAS, plan 6.3). The hub asks; both sides show the 6-digit code; the agent answers.
+message PairRequest { string hub_name = 1; }
+message PairResult { bool accepted = 1; repeated string granted = 2; string reason = 3; }
+
+// Clock sync (plan 6.4). Timestamps are each side's monotonic clock in ns.
+message Ping { uint64 t0_ns = 1; }                                    // sender clock
+message Pong { uint64 t0_ns = 1; uint64 t1_ns = 2; uint64 t2_ns = 3; } // t1 = receive, t2 = send (responder clock)
+
+message Rect { double x = 1; double y = 2; double w = 3; double h = 4; }   // points, agent global coordinates
+
+message Source {
+  uint64 id = 1; SourceKind kind = 2;
+  string title = 3; string app_name = 4; string app_id = 5; uint32 pid = 6;
+  uint64 display_id = 7;          // for a window: the display it is on
+  Rect rect = 8; double scale = 9;
+  uint32 native_w = 10; uint32 native_h = 11; double refresh_hz = 12;
+  bool focused = 13; bool minimized = 14; bool on_screen = 15; uint32 z_order = 16;
+  bytes icon_hash = 17;
+}
+message ListSources { bool include_windows = 1; }
+message SourceList { repeated Source sources = 1; }
+message SourceEvent { oneof ev { Source added = 1; uint64 removed = 2; Source changed = 3; } }
+message GetIcon { bytes icon_hash = 1; }
+message Icon { bytes icon_hash = 1; bytes png = 2; }
+
+message Subscribe {
+  uint64 source_id = 1; Tier tier = 2;
+  uint32 max_w = 3; uint32 max_h = 4;   // pixels; agent scales keeping aspect ratio, never upscales
+  uint32 max_fps = 5; Codec codec = 6; uint32 bitrate_kbps = 7; // 0 = auto
+}
+message SubscribeAck { uint32 stream_id = 1; uint32 w = 2; uint32 h = 3; uint32 fps = 4; Codec codec = 5; }
+message UpdateSubscription { uint32 stream_id = 1; Tier tier = 2; uint32 max_w = 3; uint32 max_h = 4; uint32 max_fps = 5; uint32 bitrate_kbps = 6; }
+message Unsubscribe { uint32 stream_id = 1; }
+message RequestKeyframe { uint32 stream_id = 1; uint64 last_frame_no = 2; }
+message StreamStats {
+  uint32 stream_id = 1;
+  uint32 fps = 2; uint32 bitrate_kbps = 3;
+  uint32 dropped_before_encode = 4; uint32 encode_ms_p50_x100 = 5;
+}
+
+message PreviewSubscribe { repeated uint64 source_ids = 1; uint32 max_w = 2; uint32 display_fps = 3; uint32 window_interval_ms = 4; }
+message Preview { uint64 source_id = 1; bytes jpeg = 2; uint32 w = 3; uint32 h = 4; uint64 ts_ns = 5; }
+
+message CursorShape {
+  uint32 shape_id = 1;
+  string kind = 2;                // arrow, ibeam, pointer, resize-h, resize-v, resize-diag, grab, crosshair, wait; empty = custom
+  bytes png = 3; uint32 hotspot_x = 4; uint32 hotspot_y = 5;
+}
+message LocalActivity { bool active = 1; }
+
+message WindowCommand {
+  uint64 source_id = 1;
+  oneof cmd { bool focus = 2; Rect move_resize = 3; bool minimize = 4; bool restore = 5; bool close = 6; bool fullscreen = 7; }
+}
+message WindowCommandResult { bool ok = 1; string error = 2; Rect rect = 3; }
+
+message ClipboardOffer { repeated string mime_types = 1; uint64 size = 2; }
+message ClipboardRequest { string mime_type = 1; }
+message ClipboardData { string mime_type = 1; bytes data = 2; }
+
+message Error { uint32 code = 1; string message = 2; }
+
+// ---- Input stream ----
+message InputEvent {
+  uint64 source_id = 1;           // target; for DISPLAY this is global input on that display
+  oneof ev {
+    Key key = 2; Button button = 3; Scroll scroll = 4; Text text = 5; bool release_all = 6;
+  }
+}
+message Key { uint32 hid_usage = 1; bool down = 2; uint32 modifiers = 3; } // (usage_page << 16) | usage
+message Button { uint32 button = 1; bool down = 2; float x = 3; float y = 4; uint32 click_count = 5; }
+message Scroll { float dx = 1; float dy = 2; bool precise = 3; uint32 phase = 4; }
+message Text { string utf8 = 1; }

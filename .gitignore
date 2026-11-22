@@ -1,0 +1,11 @@
+/target
+/dist
+*.csv
+!tools/latency/testdata/*.csv
+.DS_Store
+.dart_tool/
+spikes/flutter_spike/build/
+spikes/flutter_spike/.flutter-plugins*
+spikes/flutter_spike/macos/Flutter/ephemeral/
+spikes/flutter_spike/macos/Pods/
+spikes/flutter_spike/macos/rust/

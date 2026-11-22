@@ -1,0 +1,49 @@
+<!doctype html>
+<!--
+  Glass-to-glass latency counter (plan T0.9 / chapter 12).
+  Open fullscreen on the AGENT machine. Put the hub's window showing that screen next to it.
+  Film both screens with a phone in slow motion (240 fps); latency = left number − right number.
+  Both numbers come from the same clock (the agent's), so no clock sync is needed.
+-->
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Latency Counter</title>
+<style>
+  :root { --bg: #000; --fg: #fff; --dim: #888; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--fg); font-family: ui-monospace, Menlo, monospace; }
+  body { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2vh; overflow: hidden; }
+  #ms { font-size: min(18vw, 30vh); font-variant-numeric: tabular-nums; line-height: 1; }
+  #fr { font-size: min(5vw, 8vh); color: var(--dim); font-variant-numeric: tabular-nums; }
+  #bar { display: flex; gap: 4px; }
+  #bar div { width: min(5vw, 60px); height: min(5vw, 60px); background: #222; }
+  #bar div.on { background: #fff; }
+  #hz { font-size: 14px; color: var(--dim); }
+</style>
+</head>
+<body>
+  <div id="ms">0000.000</div>
+  <div id="fr">frame 0</div>
+  <div id="bar"></div>
+  <div id="hz"></div>
+<script>
+  // A 10-cell binary strip of the frame counter: readable even when digits blur in slow motion.
+  const bar = document.getElementById('bar');
+  const cells = Array.from({ length: 10 }, () => bar.appendChild(document.createElement('div')));
+  const msEl = document.getElementById('ms'), frEl = document.getElementById('fr'), hzEl = document.getElementById('hz');
+  let n = 0, last = performance.now(), acc = 0, cnt = 0;
+  function tick(t) {
+    const v = (performance.now() % 10000).toFixed(3).padStart(8, '0');
+    msEl.textContent = v;
+    frEl.textContent = 'frame ' + n;
+    for (let i = 0; i < cells.length; i++) cells[i].className = (n >> i) & 1 ? 'on' : '';
+    acc += t - last; last = t; cnt++;
+    if (acc > 1000) { hzEl.textContent = (cnt * 1000 / acc).toFixed(1) + ' Hz refresh'; acc = 0; cnt = 0; }
+    n++;
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
+</script>
+</body>
+</html>

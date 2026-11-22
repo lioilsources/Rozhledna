@@ -1,0 +1,21 @@
+[package]
+name = "spike-agent"
+description = "Phase 0 spike: capture (SCK or testpattern) → VideoToolbox → QUIC frame-per-stream"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+rz-proto.workspace = true
+rz-net.workspace = true
+rz-capture.workspace = true
+rz-codec.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

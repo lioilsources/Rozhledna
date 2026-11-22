@@ -1,0 +1,20 @@
+[package]
+name = "rz-proto"
+description = "Rozhledna protocol: protobuf types, framing, video frame header, datagrams, clock"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+prost.workspace = true
+bytes.workspace = true
+thiserror.workspace = true
+tokio = { workspace = true, features = ["io-util"] }
+libc.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt", "macros"] }
+
+[lints]
+workspace = true

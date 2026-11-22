@@ -1,0 +1,24 @@
+[package]
+name = "rz-spike-ffi"
+description = "T0.6: C ABI over the spike viewer client for the Flutter texture plugin"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[lib]
+crate-type = ["staticlib"]
+
+[dependencies]
+spike-viewer = { path = "../spike-viewer" }
+rz-capture.workspace = true
+rz-latency.workspace = true
+rz-proto.workspace = true
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2-core-foundation.workspace = true
+
+[lints]
+workspace = true

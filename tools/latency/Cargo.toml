@@ -1,0 +1,17 @@
+[package]
+name = "rz-latency"
+description = "Latency records (CSV), percentile stats and report tool"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+anyhow.workspace = true
+
+[[bin]]
+name = "rz-latency"
+path = "src/bin/rz-latency.rs"
+
+[lints]
+workspace = true

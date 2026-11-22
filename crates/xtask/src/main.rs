@@ -1,0 +1,209 @@
+//! Build and packaging tasks (`cargo xtask <cmd>`). Plan rule: no shell scripts.
+
+use std::path::{Path, PathBuf};
+use std::process::Command;
+
+use anyhow::{Context, Result, bail};
+use clap::{Parser, Subcommand};
+
+#[derive(Parser)]
+#[command(about = "Rozhledna build tasks")]
+struct Cli {
+    #[command(subcommand)]
+    cmd: Cmd,
+}
+
+#[derive(Subcommand)]
+enum Cmd {
+    /// Regenerate crates/rz-proto/src/gen from proto/rozhledna.proto (pure Rust, no protoc).
+    GenProto,
+    /// rustfmt --check + clippy -D warnings + tests.
+    Lint,
+    /// Build a spike binary in release mode and wrap it in a signed .app bundle in dist/.
+    ///
+    /// Signing identity: $RZ_SIGN_IDENTITY, else the first "Apple Development" identity.
+    /// A stable signature matters: TCC permissions are bound to it (plan chapter 8).
+    Bundle {
+        /// spike-agent | spike-viewer
+        name: String,
+        /// Skip codesign (permissions will NOT persist across rebuilds).
+        #[arg(long)]
+        no_sign: bool,
+    },
+    /// Build the Rust staticlib and the Flutter macOS spike app (T0.6).
+    FlutterSpike {
+        /// Build in debug mode instead of release.
+        #[arg(long)]
+        debug: bool,
+    },
+}
+
+fn main() -> Result<()> {
+    let cli = Cli::parse();
+    match cli.cmd {
+        Cmd::GenProto => gen_proto(),
+        Cmd::Lint => lint(),
+        Cmd::Bundle { name, no_sign } => bundle(&name, !no_sign),
+        Cmd::FlutterSpike { debug } => flutter_spike(!debug),
+    }
+}
+
+fn root() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).ancestors().nth(2).unwrap().to_path_buf()
+}
+
+fn run(cmd: &mut Command) -> Result<()> {
+    eprintln!("» {cmd:?}");
+    let st = cmd.status().with_context(|| format!("spawning {cmd:?}"))?;
+    if !st.success() {
+        bail!("command failed ({st}): {cmd:?}");
+    }
+    Ok(())
+}
+
+fn cargo() -> Command {
+    let mut c = Command::new(std::env::var("CARGO").unwrap_or_else(|_| "cargo".into()));
+    c.current_dir(root());
+    c
+}
+
+fn gen_proto() -> Result<()> {
+    let root = root();
+    let fds = protox::compile(["rozhledna.proto"], [root.join("proto")])?;
+    let out = root.join("crates/rz-proto/src/gen");
+    std::fs::create_dir_all(&out)?;
+    prost_build::Config::new().out_dir(&out).compile_fds(fds)?;
+    run(Command::new("rustfmt").arg("--edition=2024").arg(out.join("rozhledna.v1.rs")))?;
+    eprintln!("generated {}", out.display());
+    Ok(())
+}
+
+fn lint() -> Result<()> {
+    run(cargo().args(["fmt", "--all", "--check"]))?;
+    run(cargo().args(["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]))?;
+    run(cargo().args(["test", "--workspace"]))?;
+    Ok(())
+}
+
+struct BundleSpec {
+    bin: &'static str,
+    app: &'static str,
+    id: &'static str,
+    usage: &'static [(&'static str, &'static str)],
+    ui_element: bool,
+}
+
+const BUNDLES: &[BundleSpec] = &[
+    BundleSpec {
+        bin: "spike-agent",
+        app: "Rozhledna Spike Agent",
+        id: "dev.ol1n.rozhledna.spike-agent",
+        usage: &[
+            ("NSScreenCaptureUsageDescription", "Rozhledna streams this screen to your hub."),
+            ("NSLocalNetworkUsageDescription", "Rozhledna talks to your hub on the local network."),
+        ],
+        ui_element: true,
+    },
+    BundleSpec {
+        bin: "spike-viewer",
+        app: "Rozhledna Spike Viewer",
+        id: "dev.ol1n.rozhledna.spike-viewer",
+        usage: &[("NSLocalNetworkUsageDescription", "Rozhledna connects to agents on the local network.")],
+        ui_element: false,
+    },
+];
+
+fn bundle(name: &str, sign: bool) -> Result<()> {
+    let spec = BUNDLES
+        .iter()
+        .find(|b| b.bin == name)
+        .with_context(|| format!("unknown bundle {name}; known: spike-agent, spike-viewer"))?;
+    run(cargo().args(["build", "--release", "-p", spec.bin]))?;
+    let root = root();
+    let app = root.join("dist").join(format!("{}.app", spec.app));
+    let _ = std::fs::remove_dir_all(&app);
+    let macos = app.join("Contents/MacOS");
+    std::fs::create_dir_all(&macos)?;
+    std::fs::copy(root.join("target/release").join(spec.bin), macos.join(spec.bin))?;
+    let mut extra = String::new();
+    for (k, v) in spec.usage {
+        extra.push_str(&format!("  <key>{k}</key><string>{v}</string>\n"));
+    }
+    if spec.ui_element {
+        extra.push_str("  <key>LSUIElement</key><true/>\n");
+    }
+    let plist = format!(
+        r#"<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleIdentifier</key><string>{id}</string>
+  <key>CFBundleName</key><string>{app}</string>
+  <key>CFBundleExecutable</key><string>{bin}</string>
+  <key>CFBundlePackageType</key><string>APPL</string>
+  <key>CFBundleShortVersionString</key><string>{ver}</string>
+  <key>CFBundleVersion</key><string>{ver}</string>
+  <key>LSMinimumSystemVersion</key><string>14.0</string>
+  <key>NSHighResolutionCapable</key><true/>
+  <key>NSBonjourServices</key><array><string>_rozhledna._udp</string></array>
+{extra}</dict>
+</plist>
+"#,
+        id = spec.id,
+        app = spec.app,
+        bin = spec.bin,
+        ver = env!("CARGO_PKG_VERSION"),
+    );
+    std::fs::write(app.join("Contents/Info.plist"), plist)?;
+    if sign {
+        let identity = signing_identity()?;
+        run(Command::new("codesign")
+            .args(["--force", "--options", "runtime", "--timestamp=none", "--sign"])
+            .arg(&identity)
+            .arg(&app))?;
+    } else {
+        eprintln!("WARNING: unsigned bundle — TCC permissions will not survive a rebuild");
+    }
+    eprintln!("bundle: {}", app.display());
+    Ok(())
+}
+
+fn signing_identity() -> Result<String> {
+    if let Ok(id) = std::env::var("RZ_SIGN_IDENTITY") {
+        return Ok(id);
+    }
+    let out = Command::new("security").args(["find-identity", "-v", "-p", "codesigning"]).output()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    for pref in ["Developer ID Application", "Apple Development"] {
+        if let Some(line) = text.lines().find(|l| l.contains(pref)) {
+            // `  1) <SHA1> "name"` → use the hash, it is unambiguous.
+            if let Some(hash) = line.split_whitespace().nth(1) {
+                return Ok(hash.to_string());
+            }
+        }
+    }
+    bail!("no codesigning identity found; set RZ_SIGN_IDENTITY or pass --no-sign")
+}
+
+fn flutter_spike(release: bool) -> Result<()> {
+    let profile = if release { "release" } else { "debug" };
+    let mut b = cargo();
+    b.args(["build", "-p", "rz-spike-ffi"]);
+    if release {
+        b.arg("--release");
+    }
+    run(&mut b)?;
+    let root = root();
+    let app_dir = root.join("spikes/flutter_spike");
+    let lib_dir = app_dir.join("macos/rust");
+    std::fs::create_dir_all(&lib_dir)?;
+    std::fs::copy(root.join("target").join(profile).join("librz_spike_ffi.a"), lib_dir.join("librz_spike_ffi.a"))?;
+    run(Command::new("flutter").current_dir(&app_dir).args(["build", "macos", &format!("--{profile}")]))?;
+    eprintln!(
+        "app: {}",
+        app_dir
+            .join(format!("build/macos/Build/Products/{}/flutter_spike.app", if release { "Release" } else { "Debug" }))
+            .display()
+    );
+    Ok(())
+}

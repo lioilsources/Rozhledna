@@ -1,0 +1,22 @@
+[package]
+name = "rz-net"
+description = "Rozhledna networking: QUIC endpoints, frame-per-stream video, control stream, clock sync"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+rz-proto.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+quinn.workspace = true
+rustls.workspace = true
+rcgen.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["rt-multi-thread", "macros"] }
+
+[lints]
+workspace = true
