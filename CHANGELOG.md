@@ -72,3 +72,13 @@
 - `rz_agent::cursor`: vlákno 60 Hz pozice (`CGEventGetLocation`), 30 Hz tvar (`NSCursor.currentSystemCursor`, hash TIFF dat). Standardní kurzory AppKitu → `kind` (arrow, ibeam, pointer, crosshair, grab, grabbing, resize-h/v, not-allowed, copy), ostatní jako PNG + hotspot v pixelech.
 - Agent posílá hubu `CursorShape` (control, jednou za tvar) a `CursorPos` datagram pro každý sledovaný zdroj při změně a 1× za sekundu (normalizovaně ke zdroji, `visible` = uvnitř).
 - `rzctl stats` vypisuje tvar a pozici kurzoru; příklad `cursor-probe` (experiment).
+
+### T1.5 rz-hub-core + rz-hub-ffi
+- `rz-hub-core::Hub`: agenti (adresa nebo mDNS), dlaždice (`subscribe` / `update_tile` / `unsubscribe`), vstup (`input`, `pointer`, `release_all`), poslední kurzor na dlaždici, odpovědi na párovací dotazy, události (`Event`, JSON).
+- Task na agenta: connect (nastavená adresa, pak adresy z mDNS podle otisku) → handshake/párování → `ListSources` → přihlášení všech jeho dlaždic → video / control / datagramy; při ztrátě reconnect s backoffem, dlaždice zůstávají a po připojení se znovu přihlásí. Po odemčení obrazovky (`AgentStatus`) se zopakují neúspěšné odběry.
+- Ping každých 500 ms (clock sync + keep-alive pro držené klávesy, DECISIONS T1.3).
+- Dekódovací vlákno na dlaždici (přežije reconnect): reorder z Fáze 0 + `floor` / `waiting_for_keyframe` → příjem `stop()`ne streamy, které už nejdou použít (plán 6.4); RequestKeyframe max 1× / 250 ms; statistiky 1× / s (fps, bitrate, latence capture→decode P50/P95, přeskočené, agent fps/drop).
+- Vstupní uni stream s prioritou 10 (klik nečeká za keyframem), pohyb myši datagramy se seq.
+- `rz-net::video::recv_header` / `recv_payload`, `ControlSender::next_seq`.
+- `rz-hub-ffi` (staticlib, C ABI, `include/rz_hub.h`): události jako JSON, nejnovější `CVPixelBuffer` na dlaždici + callback, vstup, kurzor, párování.
+- Test e2e hub-core ↔ rz-agent (testpattern): párování, 2 dlaždice s ověřenými čísly framů, vstup na správný displej, restart agenta → automatický reconnect bez nového párování a pokračující framy.

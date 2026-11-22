@@ -132,3 +132,10 @@ Plán: „> 2 framy neodeslané → drop před enkódováním + bitrate −20 %�
 - Bez `NSApplication` vrací `arrowCursor` NULL (objc2 panikaří), proto agent vytváří `NSApplication.sharedApplication` v `main` i v headless režimu a tracker má `catch_unwind`.
 - Když `currentSystemCursor` jednou začne vracet nil, tracker to zaloguje a posílá jen pozici (hub ukáže šipku). Náhrada: sledovat kurzor z ScreenCaptureKit (`showsCursor=true` do druhého, malého streamu) nebo privátní `CGSCopyRegisteredCursorImages`. Zatím se nedělá.
 - Ověřit ručně na M2: tvar se mění v jiných aplikacích (I-beam nad textem, ruka nad odkazem).
+
+## 2026-11-22 — T1.5: hub-core a FFI
+
+- **FFI = ruční C ABI + JSON události, ne `flutter_rust_bridge`** (D1 ho uvádí). Důvody: textury stejně potřebují nativní Swift plugin (`FlutterTexture`), který C ABI volá přímo (ověřeno ve Fázi 0, T0.6); API je malé (~20 funkcí) a události jsou jeden JSON kanál; FRB by přidal codegen nástroj s vlastní verzí a build krok. Pokud API naroste (Fáze 2+), přechod na FRB je mechanický — `Hub` je čisté Rust API.
+- **Dekódovací vlákno na dlaždici** a nejnovější frame v jednom slotu: při shluku framů (Wi-Fi) se dekóduje vše (P-framy na sobě závisí), Flutter si vezme jen poslední (zjištění z dogfoodu).
+- **Dlaždice přežívají reconnect:** UI drží id dlaždic; session je po připojení přihlásí znovu, nový stream začíná DISCONTINUITY → reorder se resetuje, dekodér se přestaví podle nových SPS/PPS.
+- **Reconnect na novou adresu:** zkouší se nastavená adresa a pak adresy, které mDNS hlásí pro stejný otisk (`fp=` v TXT) — agent, který dostal jinou IP (DHCP, jiná síť), se najde sám.

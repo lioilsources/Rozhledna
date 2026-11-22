@@ -31,3 +31,19 @@ pub async fn recv_frame(mut s: RecvStream) -> Result<(FrameHeader, Vec<u8>)> {
     s.read_exact(&mut payload).await.context("frame payload")?;
     Ok((hdr, payload))
 }
+
+/// Reads just the header (the hub decides from it whether the rest is still wanted).
+pub async fn recv_header(s: &mut RecvStream) -> Result<FrameHeader> {
+    let mut hb = [0u8; HEADER_LEN];
+    s.read_exact(&mut hb).await.context("frame header")?;
+    let hdr = FrameHeader::decode(&hb)?;
+    ensure!((hdr.payload_len as usize) <= MAX_PAYLOAD, "payload too large: {}", hdr.payload_len);
+    Ok(hdr)
+}
+
+/// Reads the payload announced by `hdr`.
+pub async fn recv_payload(s: &mut RecvStream, hdr: &FrameHeader) -> Result<Vec<u8>> {
+    let mut payload = vec![0u8; hdr.payload_len as usize];
+    s.read_exact(&mut payload).await.context("frame payload")?;
+    Ok(payload)
+}

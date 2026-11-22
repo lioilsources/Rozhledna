@@ -1,0 +1,28 @@
+[package]
+name = "rz-hub-core"
+description = "Rozhledna hub core: sessions with agents, reconnect, stream receive + decode, input, events (FFI for Flutter)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[dependencies]
+rz-proto.workspace = true
+rz-net.workspace = true
+rz-codec.workspace = true
+rz-capture.workspace = true
+rz-latency.workspace = true
+anyhow.workspace = true
+tokio.workspace = true
+tracing.workspace = true
+quinn.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+
+[dev-dependencies]
+rz-agent.workspace = true
+rz-input.workspace = true
+tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
+
+[lints]
+workspace = true

@@ -84,6 +84,10 @@ mod mac {
     unsafe extern "C" {
         fn CFRelease(cf: *const std::ffi::c_void);
     }
+    #[link(name = "AppKit", kind = "framework")]
+    unsafe extern "C" {
+        static NSApp: *const std::ffi::c_void;
+    }
 
     fn location() -> (f64, f64) {
         unsafe {
@@ -144,8 +148,8 @@ mod mac {
     }
 
     fn run_inner(tx: watch::Sender<Sample>) {
-        // Without an NSApplication (tests, odd embeddings) the standard cursors are NULL and objc2 panics.
-        let kinds = std::panic::catch_unwind(|| autoreleasepool(|_| known())).unwrap_or_default();
+        // Without an NSApplication (tests, odd embeddings) the standard cursors are NULL (objc2 would panic).
+        let kinds = if unsafe { !NSApp.is_null() } { autoreleasepool(|_| known()) } else { HashMap::new() };
         if kinds.is_empty() {
             tracing::warn!("cursor: AppKit cursors unavailable (no NSApplication?); shapes disabled");
         }

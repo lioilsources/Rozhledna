@@ -45,6 +45,11 @@ pub struct ControlSender {
 }
 
 impl ControlSender {
+    /// The seq the next `send` will use (register a reply handler before sending).
+    pub fn next_seq(&self) -> u64 {
+        self.seq + 1
+    }
+
     pub async fn send(&mut self, msg: Msg) -> Result<u64> {
         self.reply(0, msg).await
     }

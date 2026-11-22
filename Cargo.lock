@@ -2646,6 +2646,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "rz-hub-core"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "quinn",
+ "rz-agent",
+ "rz-capture",
+ "rz-codec",
+ "rz-input",
+ "rz-latency",
+ "rz-net",
+ "rz-proto",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+]
+
+[[package]]
+name = "rz-hub-ffi"
+version = "0.0.1"
+dependencies = [
+ "anyhow",
+ "libc",
+ "objc2-core-foundation",
+ "objc2-core-video",
+ "rz-capture",
+ "rz-hub-core",
+ "rz-net",
+ "rz-proto",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "rz-input"
 version = "0.0.1"
 dependencies = [
