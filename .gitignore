@@ -9,3 +9,6 @@ spikes/flutter_spike/.flutter-plugins*
 spikes/flutter_spike/macos/Flutter/ephemeral/
 spikes/flutter_spike/macos/Pods/
 spikes/flutter_spike/macos/rust/
+
+# Local run data (CSV, logs)
+run/

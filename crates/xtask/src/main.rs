@@ -21,7 +21,7 @@ enum Cmd {
     Lint,
     /// Build a spike binary in release mode and wrap it in a signed .app bundle in dist/.
     ///
-    /// Signing identity: $RZ_SIGN_IDENTITY, else the first "Apple Development" identity.
+    /// Signing identity: $RZ_SIGN_IDENTITY, else the first non-revoked Developer ID / Apple Development one.
     /// A stable signature matters: TCC permissions are bound to it (plan chapter 8).
     Bundle {
         /// spike-agent | spike-viewer
@@ -156,11 +156,7 @@ fn bundle(name: &str, sign: bool) -> Result<()> {
     );
     std::fs::write(app.join("Contents/Info.plist"), plist)?;
     if sign {
-        let identity = signing_identity()?;
-        run(Command::new("codesign")
-            .args(["--force", "--options", "runtime", "--timestamp=none", "--sign"])
-            .arg(&identity)
-            .arg(&app))?;
+        sign_bundle(&app)?;
     } else {
         eprintln!("WARNING: unsigned bundle — TCC permissions will not survive a rebuild");
     }
@@ -168,21 +164,53 @@ fn bundle(name: &str, sign: bool) -> Result<()> {
     Ok(())
 }
 
-fn signing_identity() -> Result<String> {
+/// Sign with the first candidate identity whose certificate Gatekeeper does not report as revoked.
+///
+/// `security find-identity -v` is not enough: it may list a revoked cert with no `CSSMERR_` suffix
+/// (revocation is only learned via OCSP). A bundle signed with a revoked cert is flagged as malware
+/// and moved to Bin on launch, so after signing we ask `spctl`, which does the OCSP check.
+fn sign_bundle(app: &Path) -> Result<()> {
+    for identity in signing_identities()? {
+        run(Command::new("codesign")
+            .args(["--force", "--options", "runtime", "--timestamp=none", "--sign"])
+            .arg(&identity)
+            .arg(app))?;
+        // Exit status is irrelevant: an un-notarized Apple Development bundle is always "rejected".
+        let out = Command::new("spctl").args(["-a", "-vv", "-t", "exec"]).arg(app).output()?;
+        let verdict = String::from_utf8_lossy(&out.stderr);
+        if verdict.contains("CSSMERR_TP_CERT_REVOKED") {
+            eprintln!("WARNING: identity {identity} has a revoked certificate, trying the next one");
+            continue;
+        }
+        return Ok(());
+    }
+    // Do not leave a revoked-signed bundle around: launching it gets it trashed as malware.
+    let _ = std::fs::remove_dir_all(app);
+    bail!("every codesigning identity is revoked; set RZ_SIGN_IDENTITY or pass --no-sign")
+}
+
+/// Candidate identities (SHA-1 hashes), best first: $RZ_SIGN_IDENTITY alone if set,
+/// else "Developer ID Application", then "Apple Development".
+fn signing_identities() -> Result<Vec<String>> {
     if let Ok(id) = std::env::var("RZ_SIGN_IDENTITY") {
-        return Ok(id);
+        return Ok(vec![id]);
     }
     let out = Command::new("security").args(["find-identity", "-v", "-p", "codesigning"]).output()?;
     let text = String::from_utf8_lossy(&out.stdout);
+    let mut ids = Vec::new();
     for pref in ["Developer ID Application", "Apple Development"] {
-        if let Some(line) = text.lines().find(|l| l.contains(pref)) {
-            // `  1) <SHA1> "name"` → use the hash, it is unambiguous.
+        // Lines look like `  1) <SHA1> "name"`, optionally suffixed with `(CSSMERR_...)` for
+        // certs the keychain already knows are revoked/expired; skip those up front.
+        for line in text.lines().filter(|l| l.contains(pref) && !l.contains("CSSMERR_")) {
             if let Some(hash) = line.split_whitespace().nth(1) {
-                return Ok(hash.to_string());
+                ids.push(hash.to_string());
             }
         }
     }
-    bail!("no codesigning identity found; set RZ_SIGN_IDENTITY or pass --no-sign")
+    if ids.is_empty() {
+        bail!("no codesigning identity found; set RZ_SIGN_IDENTITY or pass --no-sign");
+    }
+    Ok(ids)
 }
 
 fn flutter_spike(release: bool) -> Result<()> {

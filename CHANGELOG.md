@@ -31,6 +31,8 @@
 - Výchozí SCK interval 1/(2×fps) + throttle na fps v agentovi (≥ ¾ intervalu mezi framy).
 - Flutter spike: v automatickém režimu skončí hned po chybě spojení/odběru (dřív čekal na RZ_SPIKE_DURATION).
 - Flutter spike: report se flushne na stdout; dogfood příkaz má RZ_SPIKE_QUIT=1.
+- `cargo xtask bundle`: nepodepisuje revokovaným certifikátem. Přeskočí identity s `CSSMERR_` a po podpisu ověří `spctl`. Při `CSSMERR_TP_CERT_REVOKED` zkusí další identitu, a když jsou revokované všechny, bundle smaže (jinak ho Gatekeeper označí za malware a přesune do Koše).
+- `vt-bench` na Apple M2 (DECISIONS.md): 4K60 H.264 LL nezvládne ani M2 (~51 fps).
 
 ## Unreleased — Fáze 1 (MVP zeď obrazovek)
 
