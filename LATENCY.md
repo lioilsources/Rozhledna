@@ -36,7 +36,8 @@ viewer na 127.0.0.1:47470, 60 s, v prohlížeči běží `counter.html`.
 | scénář | encode P50/P95 | network P50/P95 | decode P50/P95 | present P50/P95 | **total P50/P95** | fps | pozn. |
 |---|---|---|---|---|---|---|---|
 | SCK 2560×1080, nativní viewer | 6,0 / 11,1 | 0,7 / 1,5 | 3,4 / 4,6 | 0,3 / 0,5 | **10,3 / 16,5** | 57,5 | n=3417, 3,8 Mb/s skutečně (cíl 19,9), 0 dropů, 1 keyframe |
-| SCK 2560×1080, Flutter | | | | | | | čeká (upgrade Flutteru) |
+| SCK 2560×1080, nativní viewer, agent 11ef4fb, okno viditelné | — | 0,7 / 1,5 | 3,4 / 4,2 | 0,3 / 0,4 | **4,4 / 7,0** | 60,0 | G1 dvojice, `run/m2-visible-native.csv` |
+| SCK 2560×1080, Flutter, agent 11ef4fb, okno viditelné | — | 0,8 / 2,4 | 3,5 / 4,7 | 12,3 / 14,7 | **16,8 / 18,5** | 59,5 | G1 dvojice, `run/m2-visible-flutter.csv` |
 
 Max total 168,7 ms (první frame, inicializace). Encode je proti testpatternu nižší (6,0 vs 11,2 ms), protože frame má o 25 % méně pixelů a obsah se mezi snímky mění málo.
 Hodnota **57,5 fps není vada pipeline:** SCK posílá frame jen při změně obsahu, takže na statických místech plochy fps klesá. Pro G2 je potřeba scéna, která se mění v každém framu (video nebo `counter.html` přes celou obrazovku).
@@ -61,6 +62,10 @@ Ve všech bězích 0 keyframe requestů a 0 přeskočených framů. CSV jsou na 
    **Nové výchozí nastavení agenta:** SCK `1/(2×fps)` + vlastní throttle na fps (frame se přijme, když od předchozího uplynulo ≥ ¾ intervalu).
    Ověřeno: loopback testpattern 60,9 fps a M2 60 Hz 60,2 fps (network 0,5 / 1,0, decode 3,3 / 3,9, present 0,3 / 0,4).
    Proti hz=0 je total o ~0,7 ms horší (throttle občas pustí frame z pozdějšího vsyncu), ale pořád ~6 ms pod původním 1/60. Na 120Hz displeji zatím neověřeno (MacBook ProMotion, potřebuje Screen Recording).
+
+**G1 (M2 lokálně):** Flutter je o **12,4 ms** (P50) pomalejší, celý rozdíl je v present. To je pod limitem 16,7 ms, ale těsně (~0,75 frame).
+„present“ ale u každé cesty měří něco jiného: nativní viewer měří jen odeslání `layer.contents`, Flutter včetně čekání na raster/vsync. Skutečný rozdíl ukáže až glass-to-glass.
+Zakryté okno Flutteru (pod Safari ve fullscreen Space) padá na 29,7 fps, protože macOS omezuje vsync neviditelných oken. Nativní viewer drží 60 fps. Tenhle běh se do G1 nepočítá.
 
 ### Wi-Fi, dva Macy — orientační (drát není k dispozici, 2026-11-22)
 
@@ -94,6 +99,6 @@ Vyplnit podle `docs/dogfood/phase-0.md`. Brána **G2**: P50 total ≤ 25 ms při
 
 | brána | stav | podklad |
 |---|---|---|
-| G1 Flutter ≤ 1 frame navíc | **předběžně splněno** (present P95 7,4 ms < 16,7 ms) — potvrdit kamerou | loopback výše |
+| G1 Flutter ≤ 1 frame navíc | **splněno těsně:** M2 + SCK +12,4 ms P50 (+11,5 P95) proti nativnímu, limit 16,7 ms. Potvrdit kamerou, rozhoduje Ol1n | M2 lokálně výše |
 | G2 P50 ≤ 25 ms, ≥ 58 fps @1440p, drát | **uzavřeno podle lokálního měření (rozhodnutí Ol1na, varianta b, 2026-11-22):** M2 + SCK total P50 10,3–11,0 ms, síť lokálně ~0,6 ms. Drát není k dispozici, ověření na drátu je odložené. Otevřené: fps 57 místo 60 (experiment `--sck-interval-hz`) | M2 lokálně výše |
 | G3 čitelnost textu 4:2:0 | **neměřeno** — testpattern není text; nutné na reálné ploše | čeká na Ol1na |

@@ -27,7 +27,7 @@ Pokud `cargo` není v PATH: `export PATH=/opt/homebrew/opt/rustup/bin:$PATH`.
 
 ## 3. Flutter spike (H) — T0.6, brána G1
 - [ ] `cargo xtask flutter-spike`
-- [ ] Spustit: `RZ_SPIKE_ADDR=<IP-A>:47470 RZ_SPIKE_MAX=2560x1440 RZ_SPIKE_AUTOSTART=1 RZ_SPIKE_DURATION=60 RZ_SPIKE_CSV=$PWD/lan-1440-flutter.csv spikes/flutter_spike/build/macos/Build/Products/Release/flutter_spike.app/Contents/MacOS/flutter_spike`
+- [ ] Spustit: `RZ_SPIKE_ADDR=<IP-A>:47470 RZ_SPIKE_MAX=2560x1440 RZ_SPIKE_AUTOSTART=1 RZ_SPIKE_DURATION=60 RZ_SPIKE_QUIT=1 RZ_SPIKE_CSV=$PWD/lan-1440-flutter.csv spikes/flutter_spike/build/macos/Build/Products/Release/flutter_spike.app/Contents/MacOS/flutter_spike`
   (nebo app otevřít normálně, zadat adresu a kliknout Connect / Stop + report).
 - [ ] Zapsat report do `LATENCY.md` → „SCK 1440p, Flutter“.
 

@@ -101,6 +101,7 @@ final class RzSpikePlugin: NSObject, FlutterPlugin {
       }
       let report = String(cString: buf)
       print(report)  // stdout, for automated runs
+      fflush(stdout)
       result(report)
     case "quit":
       result(nil)
