@@ -2672,11 +2672,13 @@ dependencies = [
  "libc",
  "objc2-core-foundation",
  "objc2-core-video",
+ "rz-agent",
  "rz-capture",
  "rz-hub-core",
  "rz-input",
  "rz-net",
  "rz-proto",
+ "tokio",
  "tracing",
  "tracing-subscriber",
 ]

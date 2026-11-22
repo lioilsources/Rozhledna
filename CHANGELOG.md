@@ -107,3 +107,4 @@
 ### Zpevnění Fáze 1
 - **Oprava:** nová epocha streamu (reconnect, změna velikosti dlaždice) se zasekla na „floor“ staré epochy — framy 1, 2… nové epochy se zahodily, než se zpracoval frame 0, a hub si řekl o keyframe. Reorder teď rozlišuje epochy podle `capture_ts` (pozdní framy staré epochy pryč, předčasné framy nové epochy se ponechají), `Tile::wants` nezahodí frame novější, než co bylo zobrazeno. Test e2e: po reconnectu i po změně velikosti 0 žádostí o keyframe, 0 přeskočených.
 - **Oprava:** ukončení agenta (menu) i hubu (⌘Q) neposlalo CONNECTION_CLOSE → druhá strana si všimla až po 10 s idle timeoutu. Agent i hub teď před koncem počkají, až se close odešle; hub uvolní jádro při `willTerminate` (vlákno událostí skončí dřív, než se jádro uvolní).
+- Test C ABI (`rz-hub-ffi/tests/ffi.rs`) proti agentovi: JSON události, callback na frame, `take_frame` (CVPixelBuffer správné šířky), `key_mac`, pointer, free.
