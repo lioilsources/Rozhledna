@@ -2585,6 +2585,7 @@ dependencies = [
  "quinn",
  "rz-capture",
  "rz-codec",
+ "rz-input",
  "rz-net",
  "rz-proto",
  "tao",
@@ -2642,6 +2643,14 @@ dependencies = [
  "rz-proto",
  "tracing",
  "tracing-subscriber",
+]
+
+[[package]]
+name = "rz-input"
+version = "0.0.1"
+dependencies = [
+ "rz-proto",
+ "tracing",
 ]
 
 [[package]]

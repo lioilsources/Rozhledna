@@ -445,6 +445,8 @@ pub mod input_event {
         ReleaseAll(bool),
     }
 }
+/// Key: physical key as USB HID usage, (usage_page << 16) | usage; page 0x07 (keyboard) may be sent as plain usage.
+/// The agent derives modifier state from the keys it has seen pressed; `modifiers` is informational.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct Key {
     #[prost(uint32, tag = "1")]
@@ -454,6 +456,7 @@ pub struct Key {
     #[prost(uint32, tag = "3")]
     pub modifiers: u32,
 }
+/// Button: 0 = left, 1 = right, 2 = middle, 3 = back, 4 = forward. x, y normalized 0..1 in the source content.
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Button {
     #[prost(uint32, tag = "1")]
@@ -467,6 +470,9 @@ pub struct Button {
     #[prost(uint32, tag = "5")]
     pub click_count: u32,
 }
+/// Scroll: dx/dy in pixels when `precise` (trackpad), otherwise in lines. Positive dy = wheel away from the user
+/// (content moves down, as on macOS with natural scrolling off); positive dx = left. `phase` (precise only) uses
+/// NSEventPhase bits: 1 began, 4 changed, 8 ended, 16 cancelled; 0 = no phase (mouse wheel).
 #[derive(Clone, Copy, PartialEq, ::prost::Message)]
 pub struct Scroll {
     #[prost(float, tag = "1")]

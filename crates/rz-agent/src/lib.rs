@@ -7,6 +7,7 @@
 //! - keeps the display awake while at least one stream runs;
 //! - advertises itself over mDNS.
 
+pub mod input;
 pub mod pipeline;
 pub mod sources;
 pub mod status;
@@ -29,6 +30,7 @@ use tokio::sync::watch;
 
 pub use rz_net::handshake::PairAsk;
 
+use crate::input::{HubInput, Rects, SharedInjector};
 use crate::pipeline::Pipeline;
 use crate::sources::{CaptureParams, Registry};
 use crate::status::DisplayAwake;
@@ -86,6 +88,9 @@ pub struct Agent<U: AgentUi + 'static> {
     hubs: Mutex<HashMap<u64, HubEntry>>,
     next_conn: AtomicU64,
     awake: Mutex<Weak<DisplayAwake>>,
+    injector: SharedInjector,
+    /// Source rectangles (global points) for mapping normalized input coordinates; refreshed on every listing.
+    rects: Rects,
     /// Bumped whenever the set of hubs or their streams changes (tray refresh).
     changed: watch::Sender<u64>,
 }
@@ -98,6 +103,7 @@ impl<U: AgentUi + 'static> Agent<U> {
         registry: Registry,
         limits: Limits,
         ui: U,
+        injector: Box<dyn rz_input::Injector>,
     ) -> Arc<Self> {
         let info =
             LocalInfo { name: name.into(), is_agent: true, is_hub: false, features: vec!["agent_status".into()] };
@@ -111,6 +117,8 @@ impl<U: AgentUi + 'static> Agent<U> {
             hubs: Mutex::new(HashMap::new()),
             next_conn: AtomicU64::new(1),
             awake: Mutex::new(Weak::new()),
+            injector: Arc::new(Mutex::new(injector)),
+            rects: Arc::new(Mutex::new(HashMap::new())),
             changed: watch::channel(0).0,
         })
     }
@@ -146,6 +154,24 @@ impl<U: AgentUi + 'static> Agent<U> {
 
     pub fn trusted_hubs(&self) -> Vec<rz_net::trust::TrustedPeer> {
         self.trust.lock().unwrap().peers().to_vec()
+    }
+
+    /// Lists sources and refreshes the rectangle cache used for input mapping.
+    fn list_sources(&self) -> Result<Vec<pb::Source>> {
+        let l = self.registry.list()?;
+        let mut r = self.rects.lock().unwrap();
+        r.clear();
+        for s in &l {
+            if let Some(rect) = &s.rect {
+                r.insert(s.id, rect.into());
+            }
+        }
+        Ok(l)
+    }
+
+    /// Whether injected input reaches the OS (macOS: Accessibility).
+    pub fn input_available(&self) -> bool {
+        self.injector.lock().unwrap().available()
     }
 
     fn bump(&self) {
@@ -217,6 +243,7 @@ impl<U: AgentUi + 'static> Agent<U> {
         let auth =
             agent_handshake(&mut ctl, &conn, &self.info, &self.identity.fingerprint, &self.trust, &self.ui).await?;
         let can_view = auth.granted.iter().any(|g| g == "view");
+        let can_control = auth.granted.iter().any(|g| g == "control");
         tracing::info!(hub = %auth.peer.name, fp = %auth.peer_fp.short(), ?auth.granted, "hub authenticated");
 
         let conn_id = self.next_conn.fetch_add(1, Ordering::Relaxed);
@@ -231,13 +258,27 @@ impl<U: AgentUi + 'static> Agent<U> {
         };
         self.hubs.lock().unwrap().insert(conn_id, entry);
         self.bump();
-        let r = self.clone().serve_hub(conn, ctl, can_view, conn_id).await;
+        if can_control && self.rects.lock().unwrap().is_empty() {
+            let _ = self.list_sources();
+        }
+        let input = HubInput::new(self.injector.clone(), self.rects.clone(), can_control);
+        let input_task = tokio::spawn(input::run(conn.clone(), input.clone()));
+        let r = self.clone().serve_hub(conn, ctl, can_view, conn_id, input.clone()).await;
+        input_task.abort();
+        input.release_all("session ended");
         self.hubs.lock().unwrap().remove(&conn_id);
         self.bump();
         r
     }
 
-    async fn serve_hub(self: Arc<Self>, conn: Connection, ctl: Control, can_view: bool, conn_id: u64) -> Result<()> {
+    async fn serve_hub(
+        self: Arc<Self>,
+        conn: Connection,
+        ctl: Control,
+        can_view: bool,
+        conn_id: u64,
+        input: Arc<HubInput>,
+    ) -> Result<()> {
         let (tx, mut rx) = ctl.split();
         let ctl = Arc::new(tokio::sync::Mutex::new(tx));
         let status_task = tokio::spawn(status_loop(ctl.clone()));
@@ -246,6 +287,7 @@ impl<U: AgentUi + 'static> Agent<U> {
         let res: Result<()> = async {
             while let Some(env) = rx.recv().await? {
                 let t1 = now_ns();
+                input.touch();
                 let Some(msg) = env.msg else { continue };
                 let reply = |m: Msg| {
                     let ctl = ctl.clone();
@@ -256,7 +298,7 @@ impl<U: AgentUi + 'static> Agent<U> {
                         reply(pong_for(&p, t1)).await?;
                     }
                     Msg::ListSources(_) => {
-                        let m = match self.registry.list() {
+                        let m = match self.list_sources() {
                             Ok(sources) => Msg::SourceList(pb::SourceList { sources }),
                             Err(e) => error_msg(err::CAPTURE, format!("list sources: {e:#}")),
                         };
@@ -366,7 +408,7 @@ impl<U: AgentUi + 'static> Agent<U> {
             fps: cap(sub.max_fps, self.limits.max_fps),
         };
         let bitrate = if sub.bitrate_kbps > 0 { sub.bitrate_kbps } else { self.limits.bitrate_kbps };
-        let known = self.registry.list().map(|l| l.iter().any(|s| s.id == sub.source_id)).unwrap_or(false);
+        let known = self.list_sources().map(|l| l.iter().any(|s| s.id == sub.source_id)).unwrap_or(false);
         if !known {
             return Err(error(err::UNKNOWN_SOURCE, format!("unknown source {}", sub.source_id)));
         }

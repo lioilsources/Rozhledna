@@ -23,6 +23,12 @@ enum Source {
     Testpattern,
 }
 
+#[derive(Copy, Clone, ValueEnum, Debug)]
+enum Inject {
+    Cgevent,
+    Null,
+}
+
 #[derive(Parser, Debug)]
 #[command(about = "Rozhledna agent: shares this machine's screens with paired hubs on the LAN")]
 struct Args {
@@ -59,6 +65,10 @@ struct Args {
     sck_interval_hz: Option<u32>,
     #[arg(long)]
     log_file: Option<PathBuf>,
+    /// Input injection: `cgevent` (needs Accessibility) or `null` (log only). Default: cgevent for sck,
+    /// null for testpattern (input must not land on the real desktop).
+    #[arg(long, value_enum)]
+    inject: Option<Inject>,
     /// Print this agent's fingerprint and exit.
     #[arg(long)]
     print_fingerprint: bool,
@@ -97,11 +107,24 @@ fn main() -> Result<()> {
         screen_recording = st.screen_recording, accessibility = st.accessibility, "agent starting"
     );
 
+    let inject = args.inject.unwrap_or(match args.source {
+        Source::Sck => Inject::Cgevent,
+        Source::Testpattern => Inject::Null,
+    });
+    let injector: Box<dyn rz_input::Injector> = match inject {
+        #[cfg(target_os = "macos")]
+        Inject::Cgevent => Box::new(rz_input::macos::CgEventInjector::new()),
+        #[cfg(not(target_os = "macos"))]
+        Inject::Cgevent => anyhow::bail!("cgevent injection is macOS only"),
+        Inject::Null => Box::new(rz_input::NullInjector::default()),
+    };
+    tracing::info!(?inject, available = injector.available(), "input injection");
+
     #[cfg(target_os = "macos")]
     if !args.headless {
-        return tray::run(args, identity, trust, Registry::new(backend), limits, name);
+        return tray::run(args, identity, trust, Registry::new(backend), limits, name, injector);
     }
-    let agent = Agent::new(identity, &name, trust, Registry::new(backend), limits, Ui::Terminal);
+    let agent = Agent::new(identity, &name, trust, Registry::new(backend), limits, Ui::Terminal, injector);
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(agent.serve(args.bind, !args.no_mdns))
 }
@@ -213,11 +236,12 @@ mod tray {
         registry: Registry,
         limits: Limits,
         name: String,
+        injector: Box<dyn rz_input::Injector>,
     ) -> Result<()> {
         let mut event_loop = EventLoopBuilder::<UserEvent>::with_user_event().build();
         event_loop.set_activation_policy(ActivationPolicy::Accessory);
         let proxy = event_loop.create_proxy();
-        let agent = Agent::new(identity, &name, trust, registry, limits, Ui::Tray(Mutex::new(proxy.clone())));
+        let agent = Agent::new(identity, &name, trust, registry, limits, Ui::Tray(Mutex::new(proxy.clone())), injector);
 
         let p = Mutex::new(proxy.clone());
         MenuEvent::set_event_handler(Some(move |e| {
@@ -342,7 +366,7 @@ mod tray {
             sr.id().clone(),
             if st.screen_recording { Action::OpenScreenRecording } else { Action::RequestScreenRecording },
         );
-        let ax = item(&add, format!("{} Zpřístupnění (ovládání, Fáze 1 T1.3)", mark(st.accessibility)), true);
+        let ax = item(&add, format!("{} Zpřístupnění (ovládání myší a klávesnicí)", mark(st.accessibility)), true);
         acts.insert(ax.id().clone(), Action::OpenAccessibility);
         if st.screen_locked {
             item(&add, "Obrazovka je zamčená — snímání neběží".into(), false);

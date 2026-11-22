@@ -5,6 +5,7 @@
 //! rzctl pair <host:port>                 pair with an agent (shows the code; confirm on the agent)
 //! rzctl sources <host:port>              list the agent's sources
 //! rzctl stats <host:port> [--source N]   subscribe, receive frames, print fps / bitrate / latency per second
+//! rzctl poke <host:port> [--source N]    input test: circle the pointer, type via HID keys and as Unicode text
 //! rzctl trusted | forget <sha256:…>      the hub's trust store
 //! rzctl fingerprint                      this hub's fingerprint
 //! ```
@@ -60,6 +61,11 @@ enum Cmd {
         max_h: u32,
         #[arg(long, default_value_t = 60)]
         fps: u32,
+    },
+    Poke {
+        addr: String,
+        #[arg(long)]
+        source: Option<u64>,
     },
     Trusted,
     Forget {
@@ -249,6 +255,23 @@ async fn main() -> Result<()> {
             eprintln!("stream {}: {}×{} @{} fps", ack.stream_id, ack.w, ack.h, ack.fps);
             stats_loop(conn, ctl, secs).await?;
         }
+        Cmd::Poke { addr, source } => {
+            let hub = Hub::open(args.state_dir)?;
+            let (conn, mut ctl, auth) = hub.connect(&addr).await?;
+            eprintln!("agent „{}“ — oprávnění {}", auth.peer.name, auth.granted.join(", "));
+            let source = match source {
+                Some(s) => s,
+                None => {
+                    let seq = ctl.send(Msg::ListSources(pb::ListSources { include_windows: false })).await?;
+                    match reply(&mut ctl, seq).await? {
+                        Msg::SourceList(l) => l.sources.first().context("agent has no sources")?.id,
+                        m => bail!("unexpected {m:?}"),
+                    }
+                }
+            };
+            poke(&conn, &mut ctl, source).await?;
+            conn.close(0u32.into(), b"bye");
+        }
         Cmd::Trusted => {
             let hub = Hub::open(args.state_dir)?;
             println!("tento hub: {}", hub.id.fingerprint);
@@ -320,5 +343,40 @@ async fn stats_loop(conn: Connection, ctl: Control, secs: u64) -> Result<()> {
         }
     }
     conn.close(0u32.into(), b"bye");
+    Ok(())
+}
+
+/// Circles the pointer around the centre of `source` for 2 s, then types "ahoj " with HID keys (layout dependent)
+/// and "Rozhledna ěščřžýáíé ✓" as Unicode text. Watch the agent's screen; needs Accessibility on the agent.
+async fn poke(conn: &Connection, ctl: &mut Control, source: u64) -> Result<()> {
+    use rz_proto::datagram::Datagram;
+    use rz_proto::framing::write_msg;
+    use rz_proto::pb::input_event::Ev;
+    let ev = |e: Ev| pb::InputEvent { source_id: source, ev: Some(e) };
+    let t0 = Instant::now();
+    let mut seq = 0u32;
+    while t0.elapsed() < Duration::from_secs(2) {
+        let a = t0.elapsed().as_secs_f32() * std::f32::consts::TAU;
+        seq += 1;
+        let d = Datagram::PointerMotion { source_id: source, seq, x: 0.5 + 0.1 * a.cos(), y: 0.5 + 0.1 * a.sin() };
+        conn.send_datagram(d.encode().into())?;
+        tokio::time::sleep(Duration::from_millis(8)).await;
+    }
+    ctl.send(ping_now()).await?;
+    let mut s = conn.open_uni().await?;
+    // a h o j space (HID usages 0x04 0x0B 0x12 0x0D 0x2C).
+    for u in [0x04u32, 0x0B, 0x12, 0x0D, 0x2C] {
+        for down in [true, false] {
+            write_msg(&mut s, &ev(Ev::Key(pb::Key { hid_usage: u, down, modifiers: 0 }))).await?;
+        }
+        tokio::time::sleep(Duration::from_millis(30)).await;
+    }
+    write_msg(&mut s, &ev(Ev::Text(pb::Text { utf8: "Rozhledna ěščřžýáíé ✓".into() }))).await?;
+    write_msg(&mut s, &ev(Ev::ReleaseAll(true))).await?;
+    s.finish()?;
+    tokio::time::sleep(Duration::from_millis(300)).await;
+    eprintln!(
+        "hotovo: kurzor kroužil uprostřed zdroje {source}, napsáno „ahoj Rozhledna ěščřžýáíé ✓“ do aktivního okna"
+    );
     Ok(())
 }

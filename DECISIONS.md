@@ -116,3 +116,12 @@ Plán: „> 2 framy neodeslané → drop před enkódováním + bitrate −20 %�
 - **Agent zná hub, hub agenta ne** (přeinstalovaný hub): agent se znovu neptá, hub se zeptá svého uživatele (`HubUi::confirm_agent`). Útočník bez klíče agenta se takhle neprotlačí, protože hub ověřuje podpis TLS.
 - mDNS přes `mdns-sd` 0.22 (bez async runtime, vlastní vlákno). Instance `<name>-<fp8>`, aby dva stroje se stejným hostname nekolidovaly. Hub vidí jen LAN adresy (`lan::is_lan`: RFC 1918, link-local, loopback, CGNAT 100.64/10, ULA).
 - Ověřeno: crates na crates.io 2026-11-22 — `mdns-sd 0.22.0`, `sha2 0.11.1`, `hex 0.4.3`, `serde 1.0.229`, `serde_json 1.0.154`, `tray-icon 0.26.1`, `tao 0.37.3`.
+
+## 2026-11-22 — T1.3: vstup
+
+- **Keep-alive pro držené klávesy:** agent uvolní vše, co hub drží, po **1 s** bez jakékoli zprávy od hubu (control, vstup, datagram). QUIC keep-alive se nepočítá (aplikace ho nevidí). Hub proto musí, dokud něco drží, poslat aspoň každých 500 ms `Ping` (hub-core T1.5).
+- **ISO klávesy:** tabulka je inverzní k mapování Flutteru (`kVK_ISO_Section` ↔ HID 0x64, `kVK_ANSI_Grave` ↔ 0x35), takže Mac → Mac sedí bez ohledu na to, jak Apple ISO klávesnice prohazuje ty dvě klávesy na úrovni HID. Na Linux/Windows hubu ověřit ve Fázi 4/5.
+- **Potlačení lokálního vstupu 0 s** (`CGEventSourceSetLocalEventsSuppressionInterval`): výchozích 250 ms by zablokovalo myš člověka u agenta po každém syntetickém eventu. Kolize lokálního a vzdáleného vstupu řeší až `LocalActivity` (plán 6.7).
+- **Modifikátory jako `kCGEventFlagsChanged`** s plnými příznaky včetně levé/pravé strany. Každý event nese příznaky podle stavu tohoto hubu, ne podle globálního stavu systému.
+- **Scroll:** kladné `dy` = kolečko od uživatele (CG konvence), `precise` = pixely + `NSEventPhase`. Převod z Flutteru (`scrollDelta.dy` kladné = dolů) dělá hub.
+- **Bez Accessibility** macOS eventy tiše zahodí. Agent to hlásí v `AgentStatus.accessibility` a v menu baru.

@@ -11,6 +11,7 @@ rz-proto.workspace = true
 rz-net.workspace = true
 rz-capture.workspace = true
 rz-codec.workspace = true
+rz-input.workspace = true
 anyhow.workspace = true
 clap.workspace = true
 tokio = { workspace = true, features = ["io-std"] }
@@ -27,6 +28,7 @@ objc2-foundation = { workspace = true, features = ["NSString"] }
 objc2-app-kit = { workspace = true, features = ["NSAlert", "NSApplication", "NSRunningApplication", "NSResponder", "NSButton", "NSControl", "NSView", "NSWorkspace"] }
 
 [dev-dependencies]
+rz-input.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "macros", "time"] }
 
 [lints]

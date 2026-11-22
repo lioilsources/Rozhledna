@@ -32,8 +32,15 @@ impl HubUi for HubSide {
 #[tokio::test(flavor = "multi_thread")]
 async fn two_streams_keyframe_unsubscribe() -> Result<()> {
     let registry = Registry::new(Backend::Testpattern { w: 1344, h: 756, count: 2 });
-    let agent =
-        Agent::new(Identity::generate()?, "test-agent", TrustStore::memory(), registry, Limits::default(), Accept);
+    let agent = Agent::new(
+        Identity::generate()?,
+        "test-agent",
+        TrustStore::memory(),
+        registry,
+        Limits::default(),
+        Accept,
+        Box::new(rz_input::NullInjector::default()),
+    );
     let ep = rz_net::server_endpoint_mtls("127.0.0.1:0".parse()?, &agent.identity)?;
     let addr = ep.local_addr()?;
     tokio::spawn(agent.clone().accept_loop(ep));

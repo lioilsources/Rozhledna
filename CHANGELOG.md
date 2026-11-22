@@ -59,3 +59,11 @@
 
 ### T1.8 rzctl (základ)
 - `rzctl discover | pair | sources | stats | trusted | forget | fingerprint` s identitou hubu (`~/Library/Application Support/Rozhledna/hub`).
+
+### T1.3 rz-input
+- Nový crate `rz-input`: HID → `CGKeyCode` tabulka (ANSI + ISO + JIS, inverzní k Flutter `PhysicalKeyboardKey`), `InputState` per hub (stisknuté klávesy a tlačítka, modifikátory včetně stran, drag, `release_all` = nejdřív klávesy, pak modifikátory), `SourceRect` mapování 0..1 → globální body (nikdy ne na sousední displej), `NullInjector`.
+- `macos::CgEventInjector`: `CGEventPost(kCGHIDEventTap)`, event source s potlačením lokálního vstupu 0 s, modifikátory jako `FlagsChanged`, drag eventy, click count, scroll řádky / pixely s fází, text přes `CGEventKeyboardSetUnicodeString`.
+- Agent: vstupní uni streamy (`u32 LE` + `InputEvent`) a datagramy `PointerMotion` (starší seq se zahodí), jen s oprávněním `control`; hlídač: > 1 s ticha s něčím stisknutým → uvolnit; při odpojení uvolnit vše. `--inject cgevent|null` (výchozí cgevent pro sck, null pro testpattern).
+- Protokol: zdokumentované konvence `Key` / `Button` / `Scroll` (znaménka, jednotky, fáze).
+- `rzctl poke`: test injekce (kruh kurzorem, psaní přes HID i Unicode).
+- Testy: tabulka HID, modifikátory a release_all, mapování a drag, loopback vstup (klávesy, klik, datagramy, uvolnění při odpojení, uvolnění po tichu).

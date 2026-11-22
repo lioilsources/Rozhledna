@@ -7,6 +7,7 @@ members = [
     "crates/rz-codec",
     "crates/rz-agent",
     "crates/rz-cli",
+    "crates/rz-input",
     "crates/xtask",
     "spikes/spike-agent",
     "spikes/spike-viewer",
@@ -59,6 +60,7 @@ rz-proto = { path = "crates/rz-proto" }
 rz-net = { path = "crates/rz-net" }
 rz-capture = { path = "crates/rz-capture" }
 rz-codec = { path = "crates/rz-codec" }
+rz-input = { path = "crates/rz-input" }
 rz-latency = { path = "tools/latency" }
 
 [workspace.lints.rust]
