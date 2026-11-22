@@ -98,3 +98,8 @@
 - Start: ⌃⌥↩ ve fokusované dlaždici nebo ikona klávesnice; konec: ⌃⌥⎋, přepnutí na jinou aplikaci, fokus jiné dlaždice. Při konci `release_all`. Grab je vidět (oranžový rámeček + pruh s nápovědou).
 - Bez Zpřístupnění pro hub tap nevznikne → hláška s návodem.
 - `rz_input::hid::from_mac` (inverzní tabulka, test round-trip); `xtask hub` staví staticlib s `MACOSX_DEPLOYMENT_TARGET=12.0` (bez varování linkeru).
+
+### T1.9 Podpis a notarizace
+- `cargo xtask notarize <app>`: ověří podpis Developer ID, zip → `notarytool submit --wait` (profil `RZ_NOTARY_PROFILE`) → `stapler staple` → `spctl`. Bez Developer ID skončí srozumitelnou chybou.
+- Podpis Developer ID se dělá s bezpečným časovým razítkem (`--timestamp`, nutné pro notarizaci), Apple Development dál bez (rychlé lokální buildy).
+- README: rychlý start Fáze 1.

@@ -39,6 +39,12 @@ enum Cmd {
         #[arg(long)]
         no_sign: bool,
     },
+    /// Notarize + staple a signed .app (T1.9). Needs a Developer ID Application signature and a notarytool
+    /// keychain profile: `xcrun notarytool store-credentials rozhledna …`, then `RZ_NOTARY_PROFILE=rozhledna`.
+    Notarize {
+        /// e.g. "dist/Rozhledna Agent.app" or dist/Rozhledna.app
+        app: PathBuf,
+    },
     /// Build the Rust staticlib and the Flutter macOS spike app (T0.6).
     FlutterSpike {
         /// Build in debug mode instead of release.
@@ -55,6 +61,7 @@ fn main() -> Result<()> {
         Cmd::Bundle { name, no_sign } => bundle(&name, !no_sign),
         Cmd::FlutterSpike { debug } => flutter_spike(!debug),
         Cmd::Hub { debug, no_sign } => hub(!debug, !no_sign),
+        Cmd::Notarize { app } => notarize(&app),
     }
 }
 
@@ -195,9 +202,11 @@ fn sign_bundle(app: &Path) -> Result<()> {
 
 /// `deep`: also re-sign nested frameworks (Flutter apps embed FlutterMacOS.framework and App.framework).
 fn sign(app: &Path, deep: bool) -> Result<()> {
-    for identity in signing_identities()? {
+    for (identity, developer_id) in signing_identities()? {
+        // Notarization requires a secure timestamp; local Apple Development builds skip the network round trip.
+        let ts = if developer_id { "--timestamp" } else { "--timestamp=none" };
         run(Command::new("codesign")
-            .args(["--force", "--options", "runtime", "--timestamp=none"])
+            .args(["--force", "--options", "runtime", ts])
             .args(if deep { &["--deep"][..] } else { &[][..] })
             .arg("--sign")
             .arg(&identity)
@@ -216,21 +225,23 @@ fn sign(app: &Path, deep: bool) -> Result<()> {
     bail!("every codesigning identity is revoked; set RZ_SIGN_IDENTITY or pass --no-sign")
 }
 
-/// Candidate identities (SHA-1 hashes), best first: $RZ_SIGN_IDENTITY alone if set,
+/// Candidate identities (SHA-1 hash, is Developer ID), best first: $RZ_SIGN_IDENTITY alone if set,
 /// else "Developer ID Application", then "Apple Development".
-fn signing_identities() -> Result<Vec<String>> {
-    if let Ok(id) = std::env::var("RZ_SIGN_IDENTITY") {
-        return Ok(vec![id]);
-    }
+fn signing_identities() -> Result<Vec<(String, bool)>> {
     let out = Command::new("security").args(["find-identity", "-v", "-p", "codesigning"]).output()?;
     let text = String::from_utf8_lossy(&out.stdout);
+    if let Ok(id) = std::env::var("RZ_SIGN_IDENTITY") {
+        let dev_id = id.contains("Developer ID")
+            || text.lines().any(|l| l.contains(&id) && l.contains("Developer ID Application"));
+        return Ok(vec![(id, dev_id)]);
+    }
     let mut ids = Vec::new();
     for pref in ["Developer ID Application", "Apple Development"] {
         // Lines look like `  1) <SHA1> "name"`, optionally suffixed with `(CSSMERR_...)` for
         // certs the keychain already knows are revoked/expired; skip those up front.
         for line in text.lines().filter(|l| l.contains(pref) && !l.contains("CSSMERR_")) {
             if let Some(hash) = line.split_whitespace().nth(1) {
-                ids.push(hash.to_string());
+                ids.push((hash.to_string(), pref.starts_with("Developer ID")));
             }
         }
     }
@@ -292,5 +303,40 @@ fn hub(release: bool, sign_it: bool) -> Result<()> {
         sign(&dist, true)?;
     }
     eprintln!("hub: {}", dist.display());
+    Ok(())
+}
+
+fn notarize(app: &Path) -> Result<()> {
+    let app = if app.is_absolute() { app.to_path_buf() } else { root().join(app) };
+    let info = Command::new("codesign").args(["-dvv"]).arg(&app).output()?;
+    let info = String::from_utf8_lossy(&info.stderr);
+    if !info.contains("Authority=Developer ID Application") {
+        bail!(
+            "{} is not signed with a Developer ID Application certificate (Apple notarizes only those). \
+             Create one in the Apple Developer portal, install it, rebuild (xtask picks it automatically).",
+            app.display()
+        );
+    }
+    let profile = std::env::var("RZ_NOTARY_PROFILE").context(
+        "set RZ_NOTARY_PROFILE to a notarytool keychain profile (xcrun notarytool store-credentials <name> \
+         --apple-id … --team-id … --password <app-specific password>)",
+    )?;
+    let zip = app.with_extension("zip");
+    let _ = std::fs::remove_file(&zip);
+    run(Command::new("ditto").args(["-c", "-k", "--keepParent"]).arg(&app).arg(&zip))?;
+    let out = Command::new("xcrun")
+        .args(["notarytool", "submit"])
+        .arg(&zip)
+        .args(["--keychain-profile", &profile, "--wait"])
+        .output()?;
+    let text = String::from_utf8_lossy(&out.stdout);
+    eprintln!("{text}");
+    let _ = std::fs::remove_file(&zip);
+    if !text.contains("status: Accepted") {
+        bail!("notarization not accepted (see `xcrun notarytool log <id> --keychain-profile {profile}`)");
+    }
+    run(Command::new("xcrun").args(["stapler", "staple"]).arg(&app))?;
+    run(Command::new("spctl").args(["-a", "-vv", "-t", "exec"]).arg(&app))?;
+    eprintln!("notarized: {}", app.display());
     Ok(())
 }
