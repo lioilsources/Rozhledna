@@ -24,7 +24,7 @@ enum Cmd {
     /// Signing identity: $RZ_SIGN_IDENTITY, else the first non-revoked Developer ID / Apple Development one.
     /// A stable signature matters: TCC permissions are bound to it (plan chapter 8).
     Bundle {
-        /// spike-agent | spike-viewer
+        /// rz-agent | spike-agent | spike-viewer
         name: String,
         /// Skip codesign (permissions will NOT persist across rebuilds).
         #[arg(long)]
@@ -95,6 +95,16 @@ struct BundleSpec {
 
 const BUNDLES: &[BundleSpec] = &[
     BundleSpec {
+        bin: "rz-agent",
+        app: "Rozhledna Agent",
+        id: "dev.ol1n.rozhledna.agent",
+        usage: &[
+            ("NSScreenCaptureUsageDescription", "Rozhledna streams this screen to your paired hubs."),
+            ("NSLocalNetworkUsageDescription", "Rozhledna talks to your hubs on the local network."),
+        ],
+        ui_element: true,
+    },
+    BundleSpec {
         bin: "spike-agent",
         app: "Rozhledna Spike Agent",
         id: "dev.ol1n.rozhledna.spike-agent",
@@ -117,7 +127,7 @@ fn bundle(name: &str, sign: bool) -> Result<()> {
     let spec = BUNDLES
         .iter()
         .find(|b| b.bin == name)
-        .with_context(|| format!("unknown bundle {name}; known: spike-agent, spike-viewer"))?;
+        .with_context(|| format!("unknown bundle {name}; known: rz-agent, spike-agent, spike-viewer"))?;
     run(cargo().args(["build", "--release", "-p", spec.bin]))?;
     let root = root();
     let app = root.join("dist").join(format!("{}.app", spec.app));

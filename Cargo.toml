@@ -5,6 +5,8 @@ members = [
     "crates/rz-net",
     "crates/rz-capture",
     "crates/rz-codec",
+    "crates/rz-agent",
+    "crates/rz-cli",
     "crates/xtask",
     "spikes/spike-agent",
     "spikes/spike-viewer",
@@ -51,6 +53,8 @@ hex = "0.4.3"
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = "1.0.154"
 mdns-sd = "0.22.0"
+tray-icon = "0.26.1"
+tao = "0.37.3"
 rz-proto = { path = "crates/rz-proto" }
 rz-net = { path = "crates/rz-net" }
 rz-capture = { path = "crates/rz-capture" }

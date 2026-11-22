@@ -1,0 +1,23 @@
+[package]
+name = "rz-cli"
+description = "rzctl: Rozhledna diagnostics (discover, pair, sources, stats)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+
+[[bin]]
+name = "rzctl"
+path = "src/main.rs"
+
+[dependencies]
+rz-proto.workspace = true
+rz-net.workspace = true
+anyhow.workspace = true
+clap.workspace = true
+tokio = { workspace = true, features = ["io-std"] }
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+[lints]
+workspace = true

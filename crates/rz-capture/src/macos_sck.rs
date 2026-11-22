@@ -92,8 +92,7 @@ pub fn list_displays() -> Result<Vec<DisplayInfo>> {
 
 /// Fits `(w,h)` into `(max_w,max_h)` keeping aspect ratio, never upscaling, even dimensions.
 pub fn fit(w: u32, h: u32, max_w: u32, max_h: u32) -> (u32, u32) {
-    let s = (max_w as f64 / w as f64).min(max_h as f64 / h as f64).min(1.0);
-    (((w as f64 * s) as u32) & !1, ((h as f64 * s) as u32) & !1)
+    crate::fit_even(w, h, max_w, max_h)
 }
 
 struct OutputIvars {

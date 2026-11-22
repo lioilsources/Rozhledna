@@ -9,6 +9,12 @@ pub mod pixbuf;
 
 use std::sync::Arc;
 
+/// Fits `w×h` into `max_w×max_h` keeping the aspect ratio, never upscaling; result rounded down to even numbers.
+pub fn fit_even(w: u32, h: u32, max_w: u32, max_h: u32) -> (u32, u32) {
+    let s = (max_w as f64 / w as f64).min(max_h as f64 / h as f64).min(1.0);
+    (((w as f64 * s) as u32) & !1, ((h as f64 * s) as u32) & !1)
+}
+
 /// A planar NV12 image in CPU memory (Y plane, then interleaved CbCr at half resolution). Video range.
 #[derive(Clone)]
 pub struct Nv12Image {

@@ -46,3 +46,16 @@
 - `discovery`: mDNS `_rozhledna._udp.local.` (mdns-sd), TXT `id name os v fp roles`, jen LAN adresy (`lan::is_lan`); příklad `mdns`.
 - `backoff`: 250 ms ×2 → 10 s, ±20 % jitter (reconnect smyčka přijde se SessionManagerem v T1.5).
 - Testy: loopback párování (první kontakt + shodný SAS, reconnect bez dotazu, odmítnutí, hub zapomněl agenta, klient bez certifikátu odmítnut).
+
+### T1.2 rz-agent
+- Nový crate `rz-agent` (lib + bin): mTLS server jen pro LAN adresy, handshake/párování, mDNS, `SourceRegistry` (displeje přes SCK, nebo N testpattern displejů), libovolně streamů na hub (`Subscribe` / `UpdateSubscription` = restart streamu pod stejným id / `Unsubscribe` / `RequestKeyframe`), backpressure z Fáze 0, `StreamStats`.
+- Protokol: `AgentStatus` (Screen Recording, Accessibility, zamčená obrazovka, spící displej) po handshaku a při každé změně; `Error.code` (`rz_agent::err`): zamčeno, bez oprávnění `view`, neznámý zdroj, chyba capture, neznámý stream.
+- Zamčená obrazovka: `Subscribe` vrátí `SCREEN_LOCKED` místo nejasného „display not found“ (zjištění z dogfoodu).
+- Během streamování drží `IOPMAssertion` PreventUserIdleDisplaySleep (plán kap. 8).
+- Throttle na mřížce fps s tolerancí ¼ intervalu (`pipeline::Throttle`, testy 120 Hz → 60, jitter, pauza).
+- Menu bar (`tray-icon` + `tao`): stav oprávnění (klik = požádat / otevřít Nastavení), zamčeno, připojené huby a počet sledovaných obrazovek, „Odpojit vše“, spárované huby se „Zapomenout“, Ukončit. Párování = NSAlert s kódem. `--headless`: potvrzení v terminálu, `--trust-hub sha256:…`.
+- `cargo xtask bundle rz-agent` → `dist/Rozhledna Agent.app` (`dev.ol1n.rozhledna.agent`, LSUIElement).
+- Test loopback: párování, 2 zdroje, 2 streamy naráz, RequestKeyframe, Unsubscribe, neznámý zdroj.
+
+### T1.8 rzctl (základ)
+- `rzctl discover | pair | sources | stats | trusted | forget | fingerprint` s identitou hubu (`~/Library/Application Support/Rozhledna/hub`).

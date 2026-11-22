@@ -93,3 +93,26 @@ Plán: „> 2 framy neodeslané → drop před enkódováním + bitrate −20 %�
 - Jen `arm64` (macOS 27 je Apple-silicon-only). App Sandbox ve spiku vypnutý (CSV kamkoli, bez síťových entitlementů).
 - `textureFrameAvailable` se volá přímo z dekódovacího vlákna (embedder `MarkExternalTextureFrameAvailable` je thread-safe) — bez skoku na main thread.
 - `present_ns` ve Flutteru = okamžik, kdy si raster thread vyzvedne buffer v `copyPixelBuffer`; v nativním vieweru = po `CATransaction.commit`. Ani jedno nezahrnuje kompozici WindowServeru → **G1 rozhodne až glass-to-glass měření (T0.9 metoda)**.
+
+## 2026-11-22 — Uzavření Fáze 0 (Ol1n: „ok pokračuj“)
+
+| bod | rozhodnutí | podklad |
+|---|---|---|
+| G1 | **Hub ve Flutteru.** Flutter +12,4 ms P50 proti nativnímu (limit 16,7 ms). Pozor: zakryté okno Flutteru padá na 30 fps (macOS throttluje vsync); hub je fullscreen, takže to nevadí. | LATENCY.md, M2 lokálně |
+| G2 | **Frame-per-stream stačí**, datagramový režim ne. Lokálně total P50 4,0 ms @60 fps; přes hotspot 17 ms P50 / 66 ms P95 (jitter sítě). Ověření na drátu odloženo, drát není. | LATENCY.md |
+| G3 | **H.264 4:2:0 je čitelné** (VS Code, 2560×1080, auto bitrate ~20 Mb/s) → HEVC/4:4:4 zůstává ve Fázi 6. | LATENCY.md, G3 |
+| 4K FOCUS | **Strop 1440p@60.** Enkodér M1 Pro i M2 dává 4K jen ~51 fps. Hub (TierController) omezí FOCUS na 2560×1440; agent sám limituje 3840×2160 (hub může chtít 4K@30). | výše VideoToolbox, vt-bench M2 |
+| SCK interval | `minimumFrameInterval` = 1/(2×fps) + vlastní throttle v agentovi (≥ ¾ intervalu). Přesně 1/fps ztrácí framy (57 fps), 1/66 je ještě horší (55). | LATENCY.md, experiment |
+| Odloženo | glass-to-glass kamerou (T0.9), test 120 Hz displeje, drátová LAN, Developer ID (→ T1.9). Nic z toho nemění architekturu. | docs/dogfood/phase-0.md |
+| O4 | **Open-source od prvního dne:** repo je veřejné (github.com/lioilsources/Rozhledna), MIT OR Apache-2.0. | |
+
+## 2026-11-22 — T1.1: identita a párování
+
+- **Klíč v souboru (0600), ne v Keychainu.** Plán 6.3 dovoluje obojí. Keychain u nenotarizovaného bundlu s měnícím se podpisem při každém rebuildu ukazuje dialog „povolit přístup“, což by blokovalo bezobslužný agent. Soubor funguje stejně na Linuxu a Windows. Adresář `~/Library/Application Support/Rozhledna/<role>/` (0700). Keychain lze přidat později za `trait`.
+- **`node_id` = prvních 16 B SHA-256 otisku certifikátu** místo samostatného UUID: nemůže se rozejít s klíčem; při nové identitě vznikne nový uzel, což je správně.
+- **Vzájemné TLS:** agent vyžaduje klientský certifikát (`server_crypto_mtls`), obě strany akceptují jakýkoli certifikát, ale kontrolují podpis TLS 1.3 handshaku → druhá strana prokazatelně drží klíč k otisku. Důvěra se řeší až v `handshake` podle trust store.
+- **SAS** podle plánu: 6 číslic z `SHA-256(min(fp)‖max(fp)‖exporter("rozhledna-pair", 32 B))`; `u32 BE % 10⁶` (zanedbatelná modulo odchylka).
+- **`HelloAck.agent`** (nové pole): agent posílá svůj `Hello` i nespárovanému hubu, aby hub ukázal jméno stroje v párovacím dialogu.
+- **Agent zná hub, hub agenta ne** (přeinstalovaný hub): agent se znovu neptá, hub se zeptá svého uživatele (`HubUi::confirm_agent`). Útočník bez klíče agenta se takhle neprotlačí, protože hub ověřuje podpis TLS.
+- mDNS přes `mdns-sd` 0.22 (bez async runtime, vlastní vlákno). Instance `<name>-<fp8>`, aby dva stroje se stejným hostname nekolidovaly. Hub vidí jen LAN adresy (`lan::is_lan`: RFC 1918, link-local, loopback, CGNAT 100.64/10, ULA).
+- Ověřeno: crates na crates.io 2026-11-22 — `mdns-sd 0.22.0`, `sha2 0.11.1`, `hex 0.4.3`, `serde 1.0.229`, `serde_json 1.0.154`, `tray-icon 0.26.1`, `tao 0.37.3`.

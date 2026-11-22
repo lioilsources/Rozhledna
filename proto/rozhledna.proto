@@ -16,6 +16,7 @@ message Envelope {
     Hello hello = 10;             HelloAck hello_ack = 11;
     PairRequest pair_request = 12; PairResult pair_result = 13;
     Ping ping = 14;               Pong pong = 15;
+    AgentStatus agent_status = 16;
     ListSources list_sources = 20; SourceList source_list = 21;
     SourceEvent source_event = 22; GetIcon get_icon = 23; Icon icon = 24;
     Subscribe subscribe = 30;     SubscribeAck subscribe_ack = 31;
@@ -53,6 +54,14 @@ message HelloAck {
 // Pairing (SAS, plan 6.3). The hub asks; both sides show the 6-digit code; the agent answers.
 message PairRequest { string hub_name = 1; }
 message PairResult { bool accepted = 1; repeated string granted = 2; string reason = 3; }
+
+// Agent state the hub shows on the tile (plan 13). Sent after the handshake and on every change.
+message AgentStatus {
+  bool screen_recording = 1;      // TCC Screen Recording granted
+  bool accessibility = 2;         // TCC Accessibility granted (input injection, window control)
+  bool screen_locked = 3;         // login window / lock screen: capture is not possible
+  bool display_asleep = 4;        // main display asleep
+}
 
 // Clock sync (plan 6.4). Timestamps are each side's monotonic clock in ns.
 message Ping { uint64 t0_ns = 1; }                                    // sender clock

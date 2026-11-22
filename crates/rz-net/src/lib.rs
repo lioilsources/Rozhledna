@@ -24,9 +24,9 @@ use std::time::Duration;
 
 use anyhow::{Context, Result};
 use quinn::crypto::rustls::{QuicClientConfig, QuicServerConfig};
-use quinn::{Endpoint, TransportConfig, VarInt};
+use quinn::{TransportConfig, VarInt};
 
-pub use quinn::{Connection, RecvStream, SendStream};
+pub use quinn::{Connection, Endpoint, RecvStream, SendStream};
 
 /// Transport tuned for LAN (plan 6.4).
 pub fn transport_config() -> TransportConfig {

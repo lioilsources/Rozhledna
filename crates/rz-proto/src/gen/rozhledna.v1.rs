@@ -8,7 +8,7 @@ pub struct Envelope {
     pub reply_to: u64,
     #[prost(
         oneof = "envelope::Msg",
-        tags = "10, 11, 12, 13, 14, 15, 20, 21, 22, 23, 24, 30, 31, 32, 33, 34, 35, 40, 50, 51, 60, 61, 70, 71, 72, 99"
+        tags = "10, 11, 12, 13, 14, 15, 16, 20, 21, 22, 23, 24, 30, 31, 32, 33, 34, 35, 40, 50, 51, 60, 61, 70, 71, 72, 99"
     )]
     pub msg: ::core::option::Option<envelope::Msg>,
 }
@@ -28,6 +28,8 @@ pub mod envelope {
         Ping(super::Ping),
         #[prost(message, tag = "15")]
         Pong(super::Pong),
+        #[prost(message, tag = "16")]
+        AgentStatus(super::AgentStatus),
         #[prost(message, tag = "20")]
         ListSources(super::ListSources),
         #[prost(message, tag = "21")]
@@ -123,6 +125,22 @@ pub struct PairResult {
     pub granted: ::prost::alloc::vec::Vec<::prost::alloc::string::String>,
     #[prost(string, tag = "3")]
     pub reason: ::prost::alloc::string::String,
+}
+/// Agent state the hub shows on the tile (plan 13). Sent after the handshake and on every change.
+#[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
+pub struct AgentStatus {
+    /// TCC Screen Recording granted
+    #[prost(bool, tag = "1")]
+    pub screen_recording: bool,
+    /// TCC Accessibility granted (input injection, window control)
+    #[prost(bool, tag = "2")]
+    pub accessibility: bool,
+    /// login window / lock screen: capture is not possible
+    #[prost(bool, tag = "3")]
+    pub screen_locked: bool,
+    /// main display asleep
+    #[prost(bool, tag = "4")]
+    pub display_asleep: bool,
 }
 /// Clock sync (plan 6.4). Timestamps are each side's monotonic clock in ns.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
