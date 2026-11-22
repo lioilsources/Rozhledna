@@ -1,5 +1,7 @@
 # Dogfood checklist — Fáze 0
 
+> **Uzavřeno Ol1nem 2026-11-22** („ok pokračuj“). Rozhodnutí v DECISIONS.md (Uzavření Fáze 0). Odložené body jsou níže označené **ODLOŽENO**; nic z nich nemění architekturu.
+
 Odkliká Ol1n. Potřeba: dva Macy (agent = A, hub = H) na **drátové** LAN, Rust (`rustup`), Flutter, repo na obou.
 Výsledky zapisuj do `LATENCY.md` a `docs/probes/*.md`. Fáze 1 začne až po odkliknutí.
 
@@ -32,10 +34,10 @@ Pokud `cargo` není v PATH: `export PATH=/opt/homebrew/opt/rustup/bin:$PATH`.
 - [ ] Zapsat report do `LATENCY.md` → „SCK 1440p, Flutter“.
 
 ## 4. Glass-to-glass (T0.9, ručně)
-- [ ] Na A otevřít `tools/latency/counter.html` v prohlížeči, fullscreen.
-- [ ] Na H vedle sebe: nativní viewer a Flutter spike (nebo postupně), oba ukazují A.
+- [ ] **ODLOŽENO** (glass-to-glass). Na A otevřít `tools/latency/counter.html` v prohlížeči, fullscreen.
+- [ ] **ODLOŽENO.** Na H vedle sebe: nativní viewer a Flutter spike (nebo postupně), oba ukazují A.
 - [ ] Telefon v slow-motion (240 fps) natočit monitor A a monitor H naráz, ~10 s. Latence = číslo na A − číslo na H; vzít 10 snímků, medián.
-- [ ] Totéž pro **Moonlight + Sunshine** a pro vestavěné **Screen Sharing (High Performance)** na stejné dvojici.
+- [ ] **ODLOŽENO.** Totéž pro **Moonlight + Sunshine** a pro vestavěné **Screen Sharing (High Performance)** na stejné dvojici.
 - [ ] Zapsat do `LATENCY.md`. **G1:** Flutter ≤ nativní + 1 frame (16,7 ms @60 Hz)? **G2:** P50 ≤ 25 ms a ≥ 58 fps @1440p?
 
 ## 5. Čitelnost textu (G3)
@@ -47,11 +49,11 @@ Pokud `cargo` není v PATH: `export PATH=/opt/homebrew/opt/rustup/bin:$PATH`.
 - [ ] T0.8: `docs/probes/macos-permissions.md` — P1–P6, P9 hned; P7 (měsíční dotaz) průběžně. Rozhodnout o žádosti `persistent-content-capture`.
 
 ## 7. Rozhodnutí před Fází 1
-- [ ] G1 → hub ve Flutteru, nebo nativní renderer (přepsat kap. 9).
-- [ ] G2 → frame-per-stream stačí, nebo datagramový režim.
-- [ ] G3 → HEVC/4:4:4 ve Fázi 6, nebo předsunout.
-- [ ] 4K FOCUS: strop 1440p@60 / 4K@45 / test HEVC (DECISIONS.md, zjištění 1).
-- [ ] Developer ID certifikát pro notarizaci (T1.9).
+- [x] G1 → hub ve Flutteru.
+- [x] G2 → frame-per-stream stačí.
+- [x] G3 → HEVC/4:4:4 zůstává ve Fázi 6.
+- [x] 4K FOCUS: strop 1440p@60.
+- [ ] **ODLOŽENO do T1.9:** Developer ID certifikát pro notarizaci.
 - [ ] Otevřené body O1 (název), O3, O4, O6.
 
 ## Zjištění z dogfoodu pro Fázi 1 (2026-11-22, MacBook + M2 přes iPhone hotspot)

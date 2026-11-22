@@ -95,10 +95,10 @@ Vyplnit podle `docs/dogfood/phase-0.md`. Brána **G2**: P50 total ≤ 25 ms při
 | glass-to-glass Moonlight+Sunshine | | | | | | | |
 | glass-to-glass Screen Sharing (High Performance) | | | | | | | |
 
-### Brány Fáze 0 — předběžný stav
+### Brány Fáze 0 — uzavřeno (Ol1n, 2026-11-22)
 
 | brána | stav | podklad |
 |---|---|---|
-| G1 Flutter ≤ 1 frame navíc | **splněno těsně:** M2 + SCK +12,4 ms P50 (+11,5 P95) proti nativnímu, limit 16,7 ms. Potvrdit kamerou, rozhoduje Ol1n | M2 lokálně výše |
-| G2 P50 ≤ 25 ms, ≥ 58 fps @1440p, drát | **uzavřeno podle lokálního měření (rozhodnutí Ol1na, varianta b, 2026-11-22):** M2 + SCK total P50 10,3–11,0 ms, síť lokálně ~0,6 ms. Drát není k dispozici, ověření na drátu je odložené. Otevřené: fps 57 místo 60 (experiment `--sck-interval-hz`) | M2 lokálně výše |
-| G3 čitelnost textu 4:2:0 | **neměřeno** — testpattern není text; nutné na reálné ploše | čeká na Ol1na |
+| G1 Flutter ≤ 1 frame navíc | **splněno, hub ve Flutteru:** M2 + SCK +12,4 ms P50 (+11,5 P95) proti nativnímu, limit 16,7 ms. Kamera je odložená | M2 lokálně výše |
+| G2 P50 ≤ 25 ms, ≥ 58 fps @1440p, drát | **uzavřeno podle lokálního měření (rozhodnutí Ol1na, varianta b, 2026-11-22):** M2 + SCK total P50 10,3–11,0 ms, síť lokálně ~0,6 ms. Drát není k dispozici, ověření na drátu je odložené. Po 11ef4fb (SCK 2×fps + throttle) total P50 4,0 ms, 60 fps | M2 lokálně výše |
+| G3 čitelnost textu 4:2:0 | **splněno** (Ol1n, 2026-11-22: „je to čitelné“). VS Code fullscreen z M2 (2560×1080) ve vieweru na MacBooku, auto (~20 Mb/s) / 15 / 40 Mb/s, scroll šipkou → HEVC/4:4:4 zůstává ve Fázi 6 | G3 běhy přes hotspot |
