@@ -82,3 +82,13 @@
 - `rz-net::video::recv_header` / `recv_payload`, `ControlSender::next_seq`.
 - `rz-hub-ffi` (staticlib, C ABI, `include/rz_hub.h`): události jako JSON, nejnovější `CVPixelBuffer` na dlaždici + callback, vstup, kurzor, párování.
 - Test e2e hub-core ↔ rz-agent (testpattern): párování, 2 dlaždice s ověřenými čísly framů, vstup na správný displej, restart agenta → automatický reconnect bez nového párování a pokračující framy.
+
+### T1.6 Hub UI (Flutter)
+- `hub/` (Flutter macOS, bundle `dev.ol1n.rozhledna.hub`, „Rozhledna.app“): Swift plugin nad `rz-hub-ffi` (method channel + event channel s JSON událostmi + textura na dlaždici).
+- Panel strojů: přidané stroje se stavem (oprávnění, zamčeno, chyba), nalezené přes mDNS s „Přidat“, ruční adresa; seznam se ukládá (`agents.json`) a po startu obnoví.
+- Párovací dialog s kódem (zavře se sám po potvrzení na agentovi), dialog „neznámý stroj“ s odpovědí do jádra.
+- Layout `grid` jako čistá funkce (nejlepší nejmenší škála; testy), letterbox, overlay (stroj, displej, rozlišení, fps, Mb/s, P50), stavové hlášky na dlaždici.
+- Vstup bez grabu: pohyb myši (datagramy), tlačítka s počtem kliků, scroll kolečkem (pixely) a trackpadem (fáze), klávesy jako HID usage do fokusované dlaždice, `release_all` při ztrátě fokusu; tvar kurzoru podle agenta.
+- TierController (zjednodušený): stream = fyzické pixely dlaždice, fokus ≤ 2560×1440 @ 60, ostatní ≤ 1920×1080 @ 30, debounce 150 ms, změna < 10 % se ignoruje.
+- `cargo xtask hub` → `dist/Rozhledna.app` (podepsaný `--deep`, stejná kontrola revokace jako agent). Dogfood checklist `docs/dogfood/phase-1.md`.
+- Ověřeno na MacBooku proti agentovi s testpatternem: párování, 2 živé dlaždice 30 fps, latence capture→decode P50 ~10 ms.

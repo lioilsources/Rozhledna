@@ -12,3 +12,7 @@ spikes/flutter_spike/macos/rust/
 
 # Local run data (CSV, logs)
 run/
+hub/build/
+hub/macos/rust/
+hub/macos/Flutter/ephemeral/
+hub/.flutter-plugins*

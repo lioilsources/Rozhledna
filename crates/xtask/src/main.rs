@@ -30,6 +30,15 @@ enum Cmd {
         #[arg(long)]
         no_sign: bool,
     },
+    /// Build the hub: rz-hub-ffi staticlib + Flutter app (hub/) → signed dist/Rozhledna.app (T1.6).
+    Hub {
+        /// Build in debug mode instead of release.
+        #[arg(long)]
+        debug: bool,
+        /// Keep Flutter's ad-hoc signature (Local Network permission will not persist across rebuilds).
+        #[arg(long)]
+        no_sign: bool,
+    },
     /// Build the Rust staticlib and the Flutter macOS spike app (T0.6).
     FlutterSpike {
         /// Build in debug mode instead of release.
@@ -45,6 +54,7 @@ fn main() -> Result<()> {
         Cmd::Lint => lint(),
         Cmd::Bundle { name, no_sign } => bundle(&name, !no_sign),
         Cmd::FlutterSpike { debug } => flutter_spike(!debug),
+        Cmd::Hub { debug, no_sign } => hub(!debug, !no_sign),
     }
 }
 
@@ -180,9 +190,16 @@ fn bundle(name: &str, sign: bool) -> Result<()> {
 /// (revocation is only learned via OCSP). A bundle signed with a revoked cert is flagged as malware
 /// and moved to Bin on launch, so after signing we ask `spctl`, which does the OCSP check.
 fn sign_bundle(app: &Path) -> Result<()> {
+    sign(app, false)
+}
+
+/// `deep`: also re-sign nested frameworks (Flutter apps embed FlutterMacOS.framework and App.framework).
+fn sign(app: &Path, deep: bool) -> Result<()> {
     for identity in signing_identities()? {
         run(Command::new("codesign")
-            .args(["--force", "--options", "runtime", "--timestamp=none", "--sign"])
+            .args(["--force", "--options", "runtime", "--timestamp=none"])
+            .args(if deep { &["--deep"][..] } else { &[][..] })
+            .arg("--sign")
             .arg(&identity)
             .arg(app))?;
         // Exit status is irrelevant: an un-notarized Apple Development bundle is always "rejected".
@@ -243,5 +260,32 @@ fn flutter_spike(release: bool) -> Result<()> {
             .join(format!("build/macos/Build/Products/{}/flutter_spike.app", if release { "Release" } else { "Debug" }))
             .display()
     );
+    Ok(())
+}
+
+fn hub(release: bool, sign_it: bool) -> Result<()> {
+    let profile = if release { "release" } else { "debug" };
+    let mut b = cargo();
+    b.args(["build", "-p", "rz-hub-ffi"]);
+    if release {
+        b.arg("--release");
+    }
+    run(&mut b)?;
+    let root = root();
+    let app_dir = root.join("hub");
+    let lib_dir = app_dir.join("macos/rust");
+    std::fs::create_dir_all(&lib_dir)?;
+    std::fs::copy(root.join("target").join(profile).join("librz_hub_ffi.a"), lib_dir.join("librz_hub_ffi.a"))?;
+    run(Command::new("flutter").current_dir(&app_dir).args(["build", "macos", &format!("--{profile}")]))?;
+    let built =
+        app_dir.join(format!("build/macos/Build/Products/{}/Rozhledna.app", if release { "Release" } else { "Debug" }));
+    let dist = root.join("dist/Rozhledna.app");
+    let _ = std::fs::remove_dir_all(&dist);
+    std::fs::create_dir_all(root.join("dist"))?;
+    run(Command::new("ditto").arg(&built).arg(&dist))?;
+    if sign_it {
+        sign(&dist, true)?;
+    }
+    eprintln!("hub: {}", dist.display());
     Ok(())
 }

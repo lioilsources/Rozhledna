@@ -1,0 +1,7 @@
+// Links the Rust hub core (`cargo xtask hub` copies librz_hub_ffi.a into macos/rust/).
+// Framework list from `cargo rustc -p rz-hub-ffi --crate-type staticlib -- --print native-static-libs`.
+OTHER_LDFLAGS = $(inherited) -L$(PROJECT_DIR)/rust -lrz_hub_ffi -framework Security -framework CoreFoundation -framework CoreGraphics -framework ApplicationServices -framework VideoToolbox -framework ScreenCaptureKit -framework UniformTypeIdentifiers -framework AVFoundation -framework CoreMedia -framework CoreVideo -framework CoreAudio -framework Metal -framework Foundation -lobjc -liconv
+
+// macOS 27 is Apple-silicon only; the Rust lib is built for aarch64-apple-darwin.
+ARCHS = arm64
+EXCLUDED_ARCHS = x86_64
