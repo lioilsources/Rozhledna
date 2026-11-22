@@ -15,6 +15,14 @@ Stav: **protokol připravený, měření čeká na Ol1na** (vyžaduje klikání 
 - `sck-probe permissions` z terminálu: Screen Recording **NOT granted**, Accessibility **NOT granted** (oprávnění by se přidělila terminálu jako responsible process).
 - `cargo xtask bundle spike-agent` podepíše bundle identitou „Apple Development“ (Team ID stabilní), hardened runtime. Developer ID chybí (DECISIONS.md).
 
+## Pozorováno na Apple M2 (2026-11-22, macOS 27.0.1)
+
+1. **Revokovaný podpis = „Malware Blocked and Moved to Bin“.** `xtask` vybral první „Apple Development“ z `security find-identity -v`, ale `-v` vypisuje i revokované certifikáty (přípona `(CSSMERR_TP_CERT_REVOKED)`). Bundle podepsaný revokovaným certifikátem macOS při spuštění označil za malware a přesunul do Koše. Na MacBooku navíc `find-identity -v` ukazoval revokovaný certifikát bez přípony `CSSMERR_` (revokaci zjistí až OCSP). Oprava: `xtask` přeskakuje řádky s `CSSMERR_`, po podpisu spustí `spctl -a -vv -t exec` a při `CSSMERR_TP_CERT_REVOKED` zkusí další identitu (platný Apple Development vrací jen „rejected“, což je u nenotarizovaného bundlu normální). Když jsou revokované všechny, bundle smaže.
+2. Po přepodepsání platnou identitou: start agenta, `TCC state screen_recording=false`, **žádný dialog**. První `Subscribe` (SCK `SCShareableContent`) okamžitě selže: „The user declined TCCs for application, window, display capture“. **Ani tady se dialog nezobrazil** (P1).
+3. `tccutil reset ScreenCapture dev.ol1n.rozhledna.spike-agent` + nový subscribe: stejná chyba, opět bez dialogu.
+4. Povolení ručně v System Settings → dialog „… may not be able to record the contents of your screen until it is quit. Quit & Reopen / Later“. „Quit & Reopen“ by agenta spustil bez argumentů, proto Later a ruční restart s parametry. Po restartu `screen_recording=true`, capture funguje. V seznamu je jen „Screen & System Audio Recording“, samostatnou položku „Remote Desktop“ k povolení nebylo potřeba (P2: stačí Screen Recording).
+5. **P3 ✓:** po `git pull` + `cargo xtask bundle spike-agent` (nový build, stejná platná identita) zůstává `screen_recording=true` bez dotazu.
+
 ## Experimenty
 
 Agent spouštěj jako bundle, aby měl vlastní TCC identitu:

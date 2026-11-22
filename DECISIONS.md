@@ -60,6 +60,16 @@ Se šumem přes 25 % plochy (`--noise 0.25`, realističtější bitrate): encode
 2. **LL rate control při nedostatečném bitrate zahazuje framy** (se šumem 172/300 zakódováno). Proto čísla framů na drátě přiděluje agent až **po** enkódování (souvislá řada); enkodér hlásí `EncoderOutput::Dropped`. Jinak by hub viděl díry a zbytečně žádal keyframe.
 3. Testpattern je pro enkodér extrémně snadný (0,3–0,8 Mb/s místo cílových 15–60). Bitrate a čitelnost textu (G3) se musí měřit na reálné ploše.
 
+**Benchmark na Apple M2** (Mac mini, macOS 27.0.1, rustc 1.100.0), stejný příkaz, 60 fps, 300 framů:
+
+| rozlišení | encode P50 / P95 | decode P50 / P95 | enc fps (testpattern) | se šumem 0,25: encode P50 / P95, decode P50 / P95, zakódováno |
+|---|---|---|---|---|
+| 1920×1080 | 7,5 / 8,3 ms | 2,7 / 3,3 ms | 60,0 | 8,2 / 9,6 ms, 3,0 / 4,1 ms, 170/300 |
+| 2560×1440 | 10,0 / 11,4 ms | 4,1 / 4,6 ms | 60,1 | 10,4 / 11,1 ms, 6,2 / 7,2 ms, 169/300 |
+| 3840×2160 | 19,6 / 20,8 ms | 8,3 / 9,3 ms | **50,7** | 20,2 / 21,4 ms, 11,5 / 14,0 ms, 164/300 |
+
+**Závěr M2:** enkodér je stejně rychlý jako M1 Pro (stejný media engine), **4K@60 H.264 LL nezvládne ani M2** (~51 fps). Decode je na M2 o 30–50 % pomalejší (méně GPU jader), na hubu to nevadí, hub je MacBook. Výchozí strop 2560×1440@60 platí i pro M2. Se šumem LL rate control znovu zahazuje ~45 % framů při všech rozlišeních.
+
 ## 2026-11-22 — Backpressure na agentovi (plán 6.4, upřesnění)
 
 Plán: „> 2 framy neodeslané → drop před enkódováním + bitrate −20 %“. Na 4K je ale v enkodéru běžně ~2 framy (encode > 1 frame interval), takže původní implementace (počítala i framy v enkodéru) chybně škrtila bitrate.
