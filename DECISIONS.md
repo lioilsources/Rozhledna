@@ -139,3 +139,9 @@ Plán: „> 2 framy neodeslané → drop před enkódováním + bitrate −20 %�
 - **Dekódovací vlákno na dlaždici** a nejnovější frame v jednom slotu: při shluku framů (Wi-Fi) se dekóduje vše (P-framy na sobě závisí), Flutter si vezme jen poslední (zjištění z dogfoodu).
 - **Dlaždice přežívají reconnect:** UI drží id dlaždic; session je po připojení přihlásí znovu, nový stream začíná DISCONTINUITY → reorder se resetuje, dekodér se přestaví podle nových SPS/PPS.
 - **Reconnect na novou adresu:** zkouší se nastavená adresa a pak adresy, které mDNS hlásí pro stejný otisk (`fp=` v TXT) — agent, který dostal jinou IP (DHCP, jiná síť), se najde sám.
+
+## 2026-11-22 — T1.7: grab
+
+- **Spouštění grabu ⌃⌥↩, ne holý Enter** (plán 9.6: „Enter na fokusované dlaždici / dvojklik / zkratka“). Enter musí normálně chodit do vzdálené aplikace a dvojklik vybírá slovo, takže zbývá zkratka s hub modifikátorem (výchozí ⌃⌥, plán 9.6) a tlačítko na dlaždici. Uvolnění ⌃⌥⎋ podle plánu.
+- **Tap `cgSessionEventTap` + `headInsertEventTap`**, klávesy se posílají ze Swiftu rovnou do Rustu (žádný skok přes Dart = žádná latence UI vlákna). Kód kláves z tapu je `kVK_*`; na HID ho převádí Rust (`from_mac`), takže tabulka je jen jedna.
+- **OVĚŘIT ručně:** zda session tap dostane ⌘Tab dřív než Dock na macOS 27 (akceptace Fáze 1). Pokud ne, náhrada je `kCGHIDEventTap` (také jen s Accessibility).

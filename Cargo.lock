@@ -2674,6 +2674,7 @@ dependencies = [
  "objc2-core-video",
  "rz-capture",
  "rz-hub-core",
+ "rz-input",
  "rz-net",
  "rz-proto",
  "tracing",

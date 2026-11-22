@@ -75,6 +75,10 @@ class HubModel extends ChangeNotifier {
   String fingerprint = '';
   Map<String, String> env = {};
   int? focusedTile;
+  /// Tile currently holding the keyboard grab (T1.7).
+  int? grabbedTile;
+  /// Last user-facing message (shown as a snack bar), e.g. why grab failed.
+  String? notice;
   String _stateDir = '';
   StreamSubscription<Map<String, dynamic>>? _sub;
 
@@ -83,6 +87,12 @@ class HubModel extends ChangeNotifier {
 
   Future<void> start() async {
     _sub = api.events.listen(_onEvent);
+    api.onNative((method, args) {
+      if (method == 'grabEnded') {
+        grabbedTile = null;
+        notifyListeners();
+      }
+    });
     final r = await api.init();
     fingerprint = r.fingerprint;
     env = r.env;
@@ -146,8 +156,28 @@ class HubModel extends ChangeNotifier {
     notifyListeners();
   }
 
+  Future<void> toggleGrab(int tile) async {
+    if (grabbedTile != null) {
+      await api.grabStop();
+      grabbedTile = null;
+    } else {
+      final err = await api.grabStart(tile);
+      if (err != null) {
+        notice = err;
+      } else {
+        focus(tile);
+        grabbedTile = tile;
+      }
+    }
+    notifyListeners();
+  }
+
   void focus(int? tile) {
     if (focusedTile == tile) return;
+    if (grabbedTile != null && grabbedTile != tile) {
+      api.grabStop();
+      grabbedTile = null;
+    }
     if (focusedTile != null) api.releaseAll(focusedTile!);
     focusedTile = tile;
     notifyListeners();

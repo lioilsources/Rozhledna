@@ -59,6 +59,11 @@ class _HubHomeState extends State<HubHome> {
   void _changed() {
     if (!mounted) return;
     setState(() {});
+    final n = m.notice;
+    if (n != null) {
+      m.notice = null;
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(n), duration: const Duration(seconds: 6)));
+    }
     for (final p in m.prompts.where((p) => !_shown.contains(p)).toList()) {
       _shown.add(p);
       _showPrompt(p);
@@ -180,7 +185,7 @@ class _HubHomeState extends State<HubHome> {
         Text('Hub ${m.fingerprint.length > 23 ? m.fingerprint.substring(7, 23) : m.fingerprint}',
             style: Theme.of(context).textTheme.bodySmall),
         const SizedBox(height: 4),
-        Text('Klik do dlaždice = fokus; klávesnice jde do fokusované dlaždice. Systémové zkratky (⌘Tab) zatím ne (T1.7).',
+        Text('Klik do dlaždice = fokus, klávesnice jde do ní. ⌃⌥↩ (nebo ikona klávesnice) = grab: i ⌘Tab, ⌘Space, ⌘Q jdou na vzdálený stroj; ⌃⌥⎋ uvolní.',
             style: Theme.of(context).textTheme.bodySmall),
       ]),
     );

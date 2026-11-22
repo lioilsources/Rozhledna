@@ -92,3 +92,9 @@
 - TierController (zjednodušený): stream = fyzické pixely dlaždice, fokus ≤ 2560×1440 @ 60, ostatní ≤ 1920×1080 @ 30, debounce 150 ms, změna < 10 % se ignoruje.
 - `cargo xtask hub` → `dist/Rozhledna.app` (podepsaný `--deep`, stejná kontrola revokace jako agent). Dogfood checklist `docs/dogfood/phase-1.md`.
 - Ověřeno na MacBooku proti agentovi s testpatternem: párování, 2 živé dlaždice 30 fps, latence capture→decode P50 ~10 ms.
+
+### T1.7 Key grab (macOS)
+- Hub: `KeyGrab` (Swift) — `CGEventTap` na session úrovni (head insert) polyká všechny klávesy včetně ⌘Tab, ⌘Space, ⌘Q a posílá je přímo do Rustu (`rz_hub_key_mac`, bez skoku přes Dart); modifikátory z `flagsChanged`, Caps Lock jako stisk; tap se po timeoutu znovu zapne.
+- Start: ⌃⌥↩ ve fokusované dlaždici nebo ikona klávesnice; konec: ⌃⌥⎋, přepnutí na jinou aplikaci, fokus jiné dlaždice. Při konci `release_all`. Grab je vidět (oranžový rámeček + pruh s nápovědou).
+- Bez Zpřístupnění pro hub tap nevznikne → hláška s návodem.
+- `rz_input::hid::from_mac` (inverzní tabulka, test round-trip); `xtask hub` staví staticlib s `MACOSX_DEPLOYMENT_TARGET=12.0` (bez varování linkeru).

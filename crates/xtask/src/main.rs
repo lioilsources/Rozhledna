@@ -263,9 +263,14 @@ fn flutter_spike(release: bool) -> Result<()> {
     Ok(())
 }
 
+/// Deployment target of the Flutter macOS runner (hub/macos/Runner.xcodeproj); C objects in the staticlib
+/// (ring) must not be newer, or the linker warns for every object.
+const FLUTTER_MACOS_TARGET: &str = "12.0";
+
 fn hub(release: bool, sign_it: bool) -> Result<()> {
     let profile = if release { "release" } else { "debug" };
     let mut b = cargo();
+    b.env("MACOSX_DEPLOYMENT_TARGET", FLUTTER_MACOS_TARGET);
     b.args(["build", "-p", "rz-hub-ffi"]);
     if release {
         b.arg("--release");

@@ -31,6 +31,7 @@ class _TileWidgetState extends State<TileWidget> {
   HubModel get m => widget.model;
   TileView get t => widget.tile;
   bool get focused => m.focusedTile == t.id;
+  bool get grabbed => m.grabbedTile == t.id;
 
   @override
   void dispose() {
@@ -106,6 +107,12 @@ class _TileWidgetState extends State<TileWidget> {
 
   KeyEventResult _onKey(FocusNode node, KeyEvent e) {
     final hid = e.physicalKey.usbHidUsage;
+    // ⌃⌥↩ starts the grab (hub shortcut, not forwarded). Release is ⌃⌥⎋, handled by the native tap.
+    final k = HardwareKeyboard.instance;
+    if (e is KeyDownEvent && e.logicalKey == LogicalKeyboardKey.enter && k.isControlPressed && k.isAltPressed) {
+      m.toggleGrab(t.id);
+      return KeyEventResult.handled;
+    }
     if (e is KeyDownEvent || e is KeyRepeatEvent) {
       m.api.key(t.id, hid, true);
     } else if (e is KeyUpEvent) {
@@ -183,7 +190,13 @@ class _TileWidgetState extends State<TileWidget> {
                 child: IgnorePointer(
                   child: DecoratedBox(
                     decoration: BoxDecoration(
-                      border: Border.all(color: focused ? const Color(0xFF4EA1FF) : const Color(0x22FFFFFF), width: focused ? 2 : 1),
+                      border: Border.all(
+                          color: grabbed
+                              ? const Color(0xFFFF8A00)
+                              : focused
+                                  ? const Color(0xFF4EA1FF)
+                                  : const Color(0x22FFFFFF),
+                          width: grabbed ? 3 : (focused ? 2 : 1)),
                     ),
                   ),
                 ),
@@ -201,6 +214,35 @@ class _TileWidgetState extends State<TileWidget> {
                   ),
                 ),
               ),
+              if (grabbed)
+                Positioned(
+                  left: _video.left,
+                  right: c.maxWidth - _video.right,
+                  bottom: c.maxHeight - _video.bottom + 8,
+                  child: IgnorePointer(
+                    child: Center(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(color: const Color(0xDDFF8A00), borderRadius: BorderRadius.circular(6)),
+                        child: Text('Grab: všechny klávesy včetně ⌘Tab jdou na ${a?.label ?? 'stroj'} — ⌃⌥⎋ uvolní',
+                            style: const TextStyle(color: Colors.black, fontWeight: FontWeight.w600)),
+                      ),
+                    ),
+                  ),
+                ),
+              if (focused && !grabbed)
+                Positioned(
+                  right: c.maxWidth - _video.right + 6,
+                  top: _video.top + 6,
+                  child: Tooltip(
+                    message: 'Grab — posílat i systémové zkratky (⌃⌥↩)',
+                    child: IconButton.filledTonal(
+                      iconSize: 16,
+                      icon: const Icon(Icons.keyboard_alt_outlined),
+                      onPressed: () => m.toggleGrab(t.id),
+                    ),
+                  ),
+                ),
               if (status.isNotEmpty)
                 Positioned.fromRect(
                   rect: _video,

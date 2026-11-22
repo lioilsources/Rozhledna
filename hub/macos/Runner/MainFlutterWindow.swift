@@ -28,6 +28,8 @@ typealias RzFrameCallback = @convention(c) (UnsafeMutableRawPointer?, UInt64) ->
 @_silgen_name("rz_hub_unsubscribe") func rz_hub_unsubscribe(_ h: OpaquePointer?, _ tile: UInt64)
 @_silgen_name("rz_hub_take_frame") func rz_hub_take_frame(_ h: OpaquePointer?, _ tile: UInt64) -> UnsafeMutableRawPointer?
 @_silgen_name("rz_hub_key") func rz_hub_key(_ h: OpaquePointer?, _ tile: UInt64, _ hid: UInt32, _ down: Bool)
+@_silgen_name("rz_hub_key_mac") func rz_hub_key_mac(_ h: OpaquePointer?, _ tile: UInt64, _ keycode: UInt16, _ down: Bool)
+  -> Bool
 @_silgen_name("rz_hub_button") func rz_hub_button(
   _ h: OpaquePointer?, _ tile: UInt64, _ button: UInt32, _ down: Bool, _ x: Float, _ y: Float, _ clicks: UInt32)
 @_silgen_name("rz_hub_scroll") func rz_hub_scroll(
@@ -64,6 +66,93 @@ final class RzTileTexture: NSObject, FlutterTexture {
   }
 }
 
+// MARK: Key grab (T1.7)
+
+/// While active, a session event tap swallows every key event system-wide (including ⌘Tab, ⌘Space, ⌘Q) and sends
+/// it to the grabbed tile. Release chord: ⌃⌥⎋. Needs Accessibility (or Input Monitoring) for the hub; without it
+/// `CGEvent.tapCreate` returns nil and `start` fails. Ends by itself when the hub stops being the active app.
+final class KeyGrab {
+  private var tap: CFMachPort?
+  private var source: CFRunLoopSource?
+  private(set) var tile: UInt64 = 0
+  private var heldModifiers = Set<UInt16>()
+  weak var plugin: RzHubPlugin?
+  var onEnded: ((String) -> Void)?
+
+  var active: Bool { tap != nil }
+
+  func start(tile: UInt64) -> String? {
+    stop(reason: nil)
+    let mask: CGEventMask =
+      (1 << CGEventType.keyDown.rawValue) | (1 << CGEventType.keyUp.rawValue) | (1 << CGEventType.flagsChanged.rawValue)
+    let me = Unmanaged.passUnretained(self).toOpaque()
+    guard
+      let t = CGEvent.tapCreate(
+        tap: .cgSessionEventTap, place: .headInsertEventTap, options: .defaultTap, eventsOfInterest: mask,
+        callback: { _, type, event, ctx in
+          guard let ctx = ctx else { return Unmanaged.passUnretained(event) }
+          return Unmanaged<KeyGrab>.fromOpaque(ctx).takeUnretainedValue().handle(type, event)
+        }, userInfo: me)
+    else {
+      return "Povol Rozhledně Zpřístupnění (Nastavení → Soukromí a zabezpečení → Zpřístupnění) a zkus znovu."
+    }
+    self.tile = tile
+    tap = t
+    source = CFMachPortCreateRunLoopSource(nil, t, 0)
+    CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+    CGEvent.tapEnable(tap: t, enable: true)
+    return nil
+  }
+
+  func stop(reason: String?) {
+    guard let t = tap else { return }
+    CGEvent.tapEnable(tap: t, enable: false)
+    if let s = source { CFRunLoopRemoveSource(CFRunLoopGetMain(), s, .commonModes) }
+    tap = nil
+    source = nil
+    heldModifiers.removeAll()
+    if let h = plugin?.hub { rz_hub_release_all(h, tile) }
+    let t0 = tile
+    tile = 0
+    if let r = reason { onEnded?(r) }
+    _ = t0
+  }
+
+  private func handle(_ type: CGEventType, _ event: CGEvent) -> Unmanaged<CGEvent>? {
+    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+      if let t = tap { CGEvent.tapEnable(tap: t, enable: true) }
+      return Unmanaged.passUnretained(event)
+    }
+    guard let h = plugin?.hub, tile != 0 else { return Unmanaged.passUnretained(event) }
+    let code = UInt16(event.getIntegerValueField(.keyboardEventKeycode))
+    let f = event.flags
+    switch type {
+    case .keyDown:
+      if code == 53 && f.contains(.maskControl) && f.contains(.maskAlternate) {  // ⌃⌥⎋
+        DispatchQueue.main.async { self.stop(reason: "chord") }
+        return nil
+      }
+      _ = rz_hub_key_mac(h, tile, code, true)
+    case .keyUp:
+      _ = rz_hub_key_mac(h, tile, code, false)
+    case .flagsChanged:
+      if code == 57 {  // Caps Lock toggles: one press each change
+        _ = rz_hub_key_mac(h, tile, code, true)
+        _ = rz_hub_key_mac(h, tile, code, false)
+      } else if heldModifiers.contains(code) {
+        heldModifiers.remove(code)
+        _ = rz_hub_key_mac(h, tile, code, false)
+      } else {
+        heldModifiers.insert(code)
+        _ = rz_hub_key_mac(h, tile, code, true)
+      }
+    default:
+      return Unmanaged.passUnretained(event)
+    }
+    return nil  // swallowed: the hub's own Mac does not see it
+  }
+}
+
 // MARK: Plugin
 
 final class RzHubPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
@@ -73,14 +162,23 @@ final class RzHubPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
   private var poller: Thread?
   private let lock = NSLock()
   private var textures: [UInt64: (RzTileTexture, Int64)] = [:]
+  private let grab = KeyGrab()
+  private var channel: FlutterMethodChannel?
 
   init(registry: FlutterTextureRegistry) {
     self.registry = registry
+    super.init()
+    grab.plugin = self
+    grab.onEnded = { [weak self] reason in self?.channel?.invokeMethod("grabEnded", arguments: reason) }
+    NotificationCenter.default.addObserver(
+      forName: NSApplication.didResignActiveNotification, object: nil, queue: .main
+    ) { [weak self] _ in self?.grab.stop(reason: "inactive") }
   }
 
   static func register(with registrar: FlutterPluginRegistrar) {
     let instance = RzHubPlugin(registry: registrar.textures)
     let channel = FlutterMethodChannel(name: "rozhledna/hub", binaryMessenger: registrar.messenger)
+    instance.channel = channel
     registrar.addMethodCallDelegate(instance, channel: channel)
     let events = FlutterEventChannel(name: "rozhledna/hub/events", binaryMessenger: registrar.messenger)
     events.setStreamHandler(instance)
@@ -213,6 +311,15 @@ final class RzHubPlugin: NSObject, FlutterPlugin, FlutterStreamHandler {
     case "forget":
       let fp = a["fingerprint"] as? String ?? ""
       result(fp.withCString { rz_hub_forget(hub, $0) })
+    case "grabStart":
+      if let err = grab.start(tile: u64(a, "tile")) {
+        result(err)
+      } else {
+        result(nil)
+      }
+    case "grabStop":
+      grab.stop(reason: "stopped")
+      result(nil)
     case "appSupportDir":
       let d = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
       result(d.appendingPathComponent("Rozhledna").path)

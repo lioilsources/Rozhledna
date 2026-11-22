@@ -234,6 +234,14 @@ pub extern "C" fn rz_hub_key(h: *mut RzHub, tile: u64, hid: u32, down: bool) {
     }
 }
 
+/// Key by macOS virtual key code (`kVK_*`, from a `CGEventTap` during grab, T1.7); mapped to HID here.
+#[unsafe(no_mangle)]
+pub extern "C" fn rz_hub_key_mac(h: *mut RzHub, tile: u64, keycode: u16, down: bool) -> bool {
+    let (Some(h), Some(u)) = (hub(h), rz_input::hid::from_mac(keycode)) else { return false };
+    h.hub.input(tile, Ev::Key(pb::Key { hid_usage: (0x07 << 16) | u as u32, down, modifiers: 0 }));
+    true
+}
+
 /// `button`: 0 left, 1 right, 2 middle, 3 back, 4 forward; `x`, `y` normalized 0..1 in the tile's source.
 #[unsafe(no_mangle)]
 pub extern "C" fn rz_hub_button(h: *mut RzHub, tile: u64, button: u32, down: bool, x: f32, y: f32, clicks: u32) {

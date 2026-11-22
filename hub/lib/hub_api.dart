@@ -72,6 +72,14 @@ class HubApi {
     );
   }
 
+  /// Grab (T1.7): all keys incl. system shortcuts go to the tile; ⌃⌥⎋ releases. Returns an error text or null.
+  Future<String?> grabStart(int tile) => _ch.invokeMethod<String>('grabStart', {'tile': tile});
+  Future<void> grabStop() => _ch.invokeMethod('grabStop');
+
+  /// Calls from Swift (`grabEnded`).
+  void onNative(void Function(String method, dynamic args) f) =>
+      _ch.setMethodCallHandler((c) async => f(c.method, c.arguments));
+
   void answer(int request, bool accept) => _ch.invokeMethod('answer', {'request': request, 'accept': accept});
   Future<bool> forget(String fingerprint) async =>
       await _ch.invokeMethod<bool>('forget', {'fingerprint': fingerprint}) ?? false;

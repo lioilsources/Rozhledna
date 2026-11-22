@@ -22,6 +22,7 @@ bool rz_hub_update_tile(RzHub *h, uint64_t tile, uint64_t source, uint32_t max_w
 void rz_hub_unsubscribe(RzHub *h, uint64_t tile);
 void *rz_hub_take_frame(RzHub *h, uint64_t tile);          // +1 CVPixelBufferRef or NULL
 void rz_hub_key(RzHub *h, uint64_t tile, uint32_t hid, bool down);
+bool rz_hub_key_mac(RzHub *h, uint64_t tile, uint16_t keycode, bool down);  // grab: kVK_* code
 void rz_hub_button(RzHub *h, uint64_t tile, uint32_t button, bool down, float x, float y, uint32_t clicks);
 void rz_hub_scroll(RzHub *h, uint64_t tile, float dx, float dy, bool precise, uint32_t phase);
 void rz_hub_text(RzHub *h, uint64_t tile, const char *utf8);

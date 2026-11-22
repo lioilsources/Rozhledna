@@ -157,9 +157,45 @@ pub fn to_mac(u: u16) -> Option<u16> {
     })
 }
 
+/// macOS `CGKeyCode` → HID keyboard usage (inverse of [`to_mac`]; for aliases the primary usage wins:
+/// backslash 0x31 over non-US # 0x32, F13–F15 over PrintScreen/ScrollLock/Pause, Help over Insert).
+pub fn from_mac(code: u16) -> Option<u16> {
+    static TABLE: std::sync::OnceLock<std::collections::HashMap<u16, u16>> = std::sync::OnceLock::new();
+    let t = TABLE.get_or_init(|| {
+        let mut m = std::collections::HashMap::new();
+        // Higher usages first so that the lower (primary) one overwrites: 0x31 over 0x32, 0x68 over 0x46, …
+        for u in (0u16..=0xFF).rev() {
+            if let Some(k) = to_mac(u) {
+                m.insert(k, u);
+            }
+        }
+        // Help key: report as Insert's sibling HID Help (0x75), the dedicated usage.
+        m.insert(0x72, 0x75);
+        // F13–F15: the dedicated F-key usages, not PrintScreen/ScrollLock/Pause.
+        m.insert(0x69, 0x68);
+        m.insert(0x6B, 0x69);
+        m.insert(0x71, 0x6A);
+        m
+    });
+    t.get(&code).copied()
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn mac_roundtrip() {
+        for u in 0u16..=0xFF {
+            if let Some(k) = to_mac(u) {
+                let back = from_mac(k).unwrap();
+                assert_eq!(to_mac(back), Some(k), "usage {u:#x} → {k:#x} → {back:#x}");
+            }
+        }
+        assert_eq!(from_mac(0x2A), Some(0x31), "backslash, not non-US #");
+        assert_eq!(from_mac(0x0A), Some(0x64), "ISO section ↔ non-US backslash (Flutter's mapping)");
+        assert_eq!(from_mac(0x37), Some(0xE3), "left Command");
+    }
 
     #[test]
     fn mapping_is_injective_except_known_alias() {
