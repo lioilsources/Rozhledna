@@ -43,11 +43,17 @@ Hodnota **57,5 fps není vada pipeline:** SCK posílá frame jen při změně ob
 
 ### Wi-Fi, dva Macy — orientační (drát není k dispozici, 2026-11-22)
 
-MacBook (hub, 192.168.88.32) ↔ M2 (agent) na domácí Wi-Fi. **Neplatí pro bránu G2**, ta je definovaná pro drát. Přes iPhone hotspot neměřit (ping 4–78 ms).
+Ve skutečnosti **iPhone Personal Hotspot**: MacBook přes iPhone USB (en8 172.20.10.4), M2 přes Wi-Fi hotspotu (172.20.10.3). Ping 4,6–93 ms. **Do brány G2 se nepočítá.**
 
-| scénář | encode | network | decode | present | total | fps | pozn. |
+| scénář | encode P50/P95 | network P50/P95 | decode P50/P95 | present P50/P95 | total P50/P95 | fps | pozn. |
 |---|---|---|---|---|---|---|---|
-| SCK 2560×1080, nativní viewer, Wi-Fi | | | | | | | |
+| SCK 2560×1080, headless, statická plocha, 20 s | 7,6 / 12,8 | 3,3 / 12,1 | 3,7 / 33,8 | — | 15,6 / 110 | 6,2 | SCK neposílá framy beze změny obsahu; min RTT 4,6 ms |
+| SCK 2560×1080, nativní okno | 7,1 / 13,5 | 3,7 / 14,2 | 4,9 / 229 | 0,2 / 3,6 | 19,1 / 239 | 24 | spojení po ~4 s spadlo („timed out“), n=85; souběžně s restartem agenta na M2 |
+| SCK 2560×1080, nativní okno, counter fullscreen, 30 s | 6,9 / 12,5 | 4,1 / 42,2 | 3,5 / 14,1 | 0,2 / 0,4 | **15,9 / 67,9** | 57,8 | n=1686, 2,0 Mb/s, 0 keyframe requestů |
+| SCK 2560×1080, headless, counter fullscreen, 60 s | 8,1 / 13,1 | 4,4 / 43,4 | 3,7 / 13,3 | — | **17,3 / 65,8** | 57,1 | n=3199, 2 keyframe requesty, 15 přeskočených framů, min RTT 4,4 ms |
+
+Shrnutí hotspotu: P50 je jen o ~5 ms horší než lokálně, ale P95 je ~4× horší, a to kvůli jitteru sítě. Vyšší P95 u decode (13 vs 4,6 ms lokálně) je nejspíš čekání v reorder bufferu na pozdní framy; potvrdit z CSV.
+fps je stejné jako lokálně (~57), takže strop není v síti.
 
 ### Drátová LAN, dva Macy (Ol1n) — ČEKÁ
 
@@ -66,5 +72,5 @@ Vyplnit podle `docs/dogfood/phase-0.md`. Brána **G2**: P50 total ≤ 25 ms při
 | brána | stav | podklad |
 |---|---|---|
 | G1 Flutter ≤ 1 frame navíc | **předběžně splněno** (present P95 7,4 ms < 16,7 ms) — potvrdit kamerou | loopback výše |
-| G2 P50 ≤ 25 ms, ≥ 58 fps @1440p, drát | **předběžně splněno na loopbacku** (15,6 ms + kompozice ~½–1 frame) — rozhodne LAN | čeká na Ol1na |
+| G2 P50 ≤ 25 ms, ≥ 58 fps @1440p, drát | **uzavřeno podle lokálního měření (rozhodnutí Ol1na, varianta b, 2026-11-22):** M2 + SCK total P50 10,3–11,0 ms, síť lokálně ~0,6 ms. Drát není k dispozici, ověření na drátu je odložené. Otevřené: fps 57 místo 60 (experiment `--sck-interval-hz`) | M2 lokálně výše |
 | G3 čitelnost textu 4:2:0 | **neměřeno** — testpattern není text; nutné na reálné ploše | čeká na Ol1na |
