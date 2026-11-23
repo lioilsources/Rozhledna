@@ -22,6 +22,8 @@ pub struct Shape {
     pub png: Vec<u8>,
     /// In PNG pixels.
     pub hotspot: (u32, u32),
+    /// PNG pixels per point.
+    pub scale: f32,
 }
 
 impl Shape {
@@ -32,6 +34,7 @@ impl Shape {
             png: self.png.clone(),
             hotspot_x: self.hotspot.0,
             hotspot_y: self.hotspot.1,
+            scale: self.scale,
         }
     }
 }
@@ -184,6 +187,7 @@ mod mac {
                                         kind: (*k).into(),
                                         png: vec![],
                                         hotspot: (hs.x as u32, hs.y as u32),
+                                        scale: 1.0,
                                     },
                                     None => {
                                         let (png, px_w) = png_of(&tiff).unwrap_or_default();
@@ -193,6 +197,7 @@ mod mac {
                                             kind: String::new(),
                                             png,
                                             hotspot: ((hs.x * scale) as u32, (hs.y * scale) as u32),
+                                            scale: scale as f32,
                                         }
                                     }
                                 });

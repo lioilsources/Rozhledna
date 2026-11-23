@@ -23,6 +23,14 @@ class SourceInfo {
   double get aspect => nativeH > 0 ? nativeW / nativeH : 16 / 9;
 }
 
+/// A cursor the agent sent as an image (not a standard kind), e.g. the macOS window-edge resize cursors.
+class CursorImage {
+  CursorImage(this.png, this.hotX, this.hotY, this.scale);
+  final Uint8List png;
+  /// Hotspot in PNG pixels; `scale` = PNG pixels per point.
+  final double hotX, hotY, scale;
+}
+
 class AgentView {
   AgentView(this.id, this.addr);
   final int id;
@@ -34,6 +42,7 @@ class AgentView {
   List<SourceInfo> sources = [];
   bool screenRecording = true, accessibility = true, locked = false, asleep = false;
   final Map<int, String> cursorKinds = {};
+  final Map<int, CursorImage> cursorImages = {};
   String get label => name.isNotEmpty ? name : addr;
 }
 
@@ -276,7 +285,15 @@ class HubModel extends ChangeNotifier {
       case 'tile_stats':
         tiles[e['tile']]?.stats = e;
       case 'cursor_shape':
-        agent()?.cursorKinds[e['shape_id'] as int] = e['kind'] as String;
+        final a = agent();
+        if (a == null) break;
+        final id = e['shape_id'] as int;
+        a.cursorKinds[id] = e['kind'] as String;
+        final png = e['png_base64'] as String;
+        if (png.isNotEmpty) {
+          a.cursorImages[id] = CursorImage(base64Decode(png), (e['hotspot_x'] as num).toDouble(),
+              (e['hotspot_y'] as num).toDouble(), ((e['scale'] as num?) ?? 1).toDouble());
+        }
     }
     notifyListeners();
   }

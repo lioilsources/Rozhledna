@@ -105,7 +105,8 @@ message Preview { uint64 source_id = 1; bytes jpeg = 2; uint32 w = 3; uint32 h =
 message CursorShape {
   uint32 shape_id = 1;
   string kind = 2;                // arrow, ibeam, pointer, resize-h, resize-v, resize-diag, grab, crosshair, wait; empty = custom
-  bytes png = 3; uint32 hotspot_x = 4; uint32 hotspot_y = 5;
+  bytes png = 3; uint32 hotspot_x = 4; uint32 hotspot_y = 5;   // hotspot in png pixels
+  float scale = 6;                // png pixels per point (0 = 1); macOS cursor images are usually @2x
 }
 message LocalActivity { bool active = 1; }
 

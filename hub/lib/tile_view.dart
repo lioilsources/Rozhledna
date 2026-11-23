@@ -27,6 +27,9 @@ class _TileWidgetState extends State<TileWidget> {
   Offset _lastDownPos = Offset.zero;
   MouseCursor _cursor = SystemMouseCursors.basic;
   Timer? _cursorPoll;
+  /// Agent cursor sent as an image: drawn at the hover position, the system cursor is hidden.
+  CursorImage? _customCursor;
+  final _hover = ValueNotifier<Offset?>(null);
 
   HubModel get m => widget.model;
   TileView get t => widget.tile;
@@ -37,6 +40,7 @@ class _TileWidgetState extends State<TileWidget> {
   void dispose() {
     _cursorPoll?.cancel();
     _focus.dispose();
+    _hover.dispose();
     super.dispose();
   }
 
@@ -88,6 +92,7 @@ class _TileWidgetState extends State<TileWidget> {
   }
 
   void _onMove(PointerEvent e) {
+    _hover.value = e.localPosition;
     final p = _norm(e.localPosition);
     if (p != null) m.api.pointer(t.id, p.$1, p.$2);
   }
@@ -123,12 +128,17 @@ class _TileWidgetState extends State<TileWidget> {
 
   void _pollCursor(bool hovering) {
     _cursorPoll?.cancel();
-    if (!hovering) return;
+    if (!hovering) {
+      _hover.value = null;
+      return;
+    }
     _cursorPoll = Timer.periodic(const Duration(milliseconds: 100), (_) async {
       final c = await m.api.cursor(t.id);
       if (c == null || !mounted) return;
-      final kind = m.agents[t.agent]?.cursorKinds[c.shape] ?? 'arrow';
-      final next = switch (kind) {
+      final a = m.agents[t.agent];
+      final kind = a?.cursorKinds[c.shape] ?? 'arrow';
+      final img = kind.isEmpty ? a?.cursorImages[c.shape] : null;
+      final next = img != null ? SystemMouseCursors.none : switch (kind) {
         'ibeam' => SystemMouseCursors.text,
         'pointer' => SystemMouseCursors.click,
         'crosshair' => SystemMouseCursors.precise,
@@ -140,7 +150,12 @@ class _TileWidgetState extends State<TileWidget> {
         'copy' => SystemMouseCursors.copy,
         _ => SystemMouseCursors.basic,
       };
-      if (next != _cursor) setState(() => _cursor = next);
+      if (next != _cursor || img != _customCursor) {
+        setState(() {
+          _cursor = next;
+          _customCursor = img;
+        });
+      }
     });
   }
 
@@ -214,6 +229,25 @@ class _TileWidgetState extends State<TileWidget> {
                   ),
                 ),
               ),
+              if (_customCursor != null)
+                Positioned.fill(
+                  child: IgnorePointer(
+                    child: ValueListenableBuilder<Offset?>(
+                      valueListenable: _hover,
+                      builder: (context, pos, _) {
+                        final cc = _customCursor;
+                        if (pos == null || cc == null || !_video.contains(pos)) return const SizedBox.shrink();
+                        return Stack(children: [
+                          Positioned(
+                            left: pos.dx - cc.hotX / cc.scale,
+                            top: pos.dy - cc.hotY / cc.scale,
+                            child: Image.memory(cc.png, scale: cc.scale, gaplessPlayback: true),
+                          ),
+                        ]);
+                      },
+                    ),
+                  ),
+                ),
               if (grabbed)
                 Positioned(
                   left: _video.left,

@@ -143,6 +143,8 @@ pub enum Event {
         png_base64: String,
         hotspot_x: u32,
         hotspot_y: u32,
+        /// PNG pixels per point.
+        scale: f32,
     },
 }
 

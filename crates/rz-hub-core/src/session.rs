@@ -448,6 +448,7 @@ async fn reader(
                 png_base64: base64(&c.png),
                 hotspot_x: c.hotspot_x,
                 hotspot_y: c.hotspot_y,
+                scale: if c.scale > 0.0 { c.scale } else { 1.0 },
             }),
             Msg::Error(e) => tracing::warn!(agent, code = e.code, "agent error: {}", e.message),
             other => tracing::debug!("unhandled {other:?}"),

@@ -341,7 +341,7 @@ pub struct Preview {
     #[prost(uint64, tag = "5")]
     pub ts_ns: u64,
 }
-#[derive(Clone, PartialEq, Eq, Hash, ::prost::Message)]
+#[derive(Clone, PartialEq, ::prost::Message)]
 pub struct CursorShape {
     #[prost(uint32, tag = "1")]
     pub shape_id: u32,
@@ -352,8 +352,12 @@ pub struct CursorShape {
     pub png: ::prost::alloc::vec::Vec<u8>,
     #[prost(uint32, tag = "4")]
     pub hotspot_x: u32,
+    /// hotspot in png pixels
     #[prost(uint32, tag = "5")]
     pub hotspot_y: u32,
+    /// png pixels per point (0 = 1); macOS cursor images are usually @2x
+    #[prost(float, tag = "6")]
+    pub scale: f32,
 }
 #[derive(Clone, Copy, PartialEq, Eq, Hash, ::prost::Message)]
 pub struct LocalActivity {
