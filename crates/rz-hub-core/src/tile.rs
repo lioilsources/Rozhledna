@@ -99,6 +99,9 @@ impl Drop for Tile {
     }
 }
 
+/// How long to wait for a requested keyframe before asking again.
+const KEYFRAME_RETRY_MS: u64 = 500;
+
 /// Requests a keyframe for the tile from its agent.
 pub type KeyframeFn = Box<dyn Fn(u64) + Send>;
 
@@ -217,6 +220,15 @@ fn decode_loop(
                 }
             }
         }
+        // While waiting for a keyframe the receive side drops P-frames unread, so the reorder sees nothing and
+        // would not ask again: if the IDR got lost (agent drop, stream reset) the tile froze for good. Re-ask.
+        if reorder.waiting_for_keyframe()
+            && last_kf_req.is_some_and(|t| t.elapsed() > Duration::from_millis(KEYFRAME_RETRY_MS))
+        {
+            last_kf_req = Some(Instant::now());
+            stats.keyframe_requests += 1;
+            request_keyframe(reorder.last_done());
+        }
         let Some(t) = tile.upgrade() else { break };
         t.floor.store(reorder.floor(), Ordering::Release);
         t.floor_ts.store(reorder.last_done_ts(), Ordering::Release);
@@ -224,7 +236,7 @@ fn decode_loop(
         if stats_at.elapsed() >= Duration::from_secs(1) {
             let dt = stats_at.elapsed().as_secs_f32();
             stats_at = Instant::now();
-            if stats.frames > 0 || stats.bytes > 0 {
+            if stats.frames > 0 || stats.bytes > 0 || stats.keyframe_requests > 0 {
                 let ev = stats.event(id, dt, &t);
                 let _ = events.send(ev);
             }

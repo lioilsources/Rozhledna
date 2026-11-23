@@ -108,6 +108,11 @@ impl<T> Reorder<T> {
         self.next.is_none() && (self.last_done.is_some() || self.want_request)
     }
 
+    /// Last frame released (0 before the first).
+    pub fn last_done(&self) -> u64 {
+        self.last_done.unwrap_or(0)
+    }
+
     /// The decoder failed: wait for the next keyframe.
     pub fn need_keyframe(&mut self) {
         self.next = None;

@@ -34,12 +34,14 @@ impl Nv12Image {
     }
 }
 
+#[derive(Clone)]
 pub enum FrameBuffer {
     Nv12(Arc<Nv12Image>),
     #[cfg(target_os = "macos")]
     PixelBuffer(pixbuf::PixelBuffer),
 }
 
+#[derive(Clone)]
 pub struct Frame {
     /// Local monotonic clock (`rz_proto::clock::now_ns` domain).
     pub capture_ts_ns: u64,

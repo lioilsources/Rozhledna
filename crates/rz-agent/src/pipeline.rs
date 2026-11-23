@@ -134,6 +134,9 @@ struct Shared {
     rate: Mutex<RateCtl>,
     /// Throttle and the newest frame not encoded yet (throttled or refused by backpressure); see the module docs.
     gate: Mutex<Gate<Frame>>,
+    /// Last frame handed to the encoder: re-encoded as an IDR when the hub asks for a keyframe while the screen
+    /// is still (SCK sends nothing then, so the request would otherwise wait for the next change).
+    last: Mutex<Option<Frame>>,
     input_no: std::sync::atomic::AtomicU64,
 }
 
@@ -160,6 +163,8 @@ impl Shared {
             self.in_encoder.fetch_sub(1, Ordering::AcqRel);
             self.force_keyframe.store(kf, Ordering::Release);
         }
+        drop(guard);
+        *self.last.lock().unwrap() = Some(frame);
         Ok(())
     }
 
@@ -240,6 +245,7 @@ impl Pipeline {
             sent: AtomicU32::new(0),
             rate: Mutex::new(RateCtl { target_kbps: target, current_kbps: target, last_drop: Instant::now() }),
             gate: Mutex::new(Gate::new(fps)),
+            last: Mutex::new(None),
             input_no: std::sync::atomic::AtomicU64::new(0),
         });
         let tasks = vec![
@@ -257,6 +263,11 @@ impl Pipeline {
 
     pub fn request_keyframe(&self) {
         self.shared.force_keyframe.store(true, Ordering::Release);
+        // Still screen: re-send the last frame (as the IDR) through the gate; a newer frame replaces it.
+        if let Some(mut f) = self.shared.last.lock().unwrap().clone() {
+            f.capture_ts_ns = rz_proto::clock::now_ns();
+            self.shared.gate.lock().unwrap().retry(f);
+        }
     }
 }
 
