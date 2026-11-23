@@ -83,6 +83,16 @@ z 288 framů s decode > 8 ms se jich 249 dekódovalo < 6 ms po předchozím fram
 U 56 předchozí frame přišel později (čekání v reorder bufferu). Pro Fázi 1 z toho plyne: při shluku dekódovat všechno (P-framy na sobě závisí), ale zobrazit jen poslední.
 fps je stejné jako lokálně (~57), takže strop není v síti.
 
+### Fáze 1: `rz-agent` (bundle) se SCK na M2, lokálně (`rzctl stats`, 2026-11-23)
+
+Agent 2d68017 spuštěný přes `open`, Display 2 2560×1080 @60 Hz, ×1.0, fullscreen `counter.html`, 30 s, rzctl na stejném stroji.
+
+| stream | fps (hub) | fps (agent) | dropped | keyframes | capture→recv P50 | Mb/s |
+|---|---|---|---|---|---|---|
+| 2560×1080 @60 | 59,6–60,1 | 60 | 1 | 0 | 2,4–2,8 ms | 1,7–2,1 |
+
+Statická plocha: 9–14 fps (SCK posílá jen změny, očekávané). `rzctl poke` napsal do TextEditu přesně „ahoj Rozhledna ěščřžýáíé ✓“, kurzor nad textem hlášen jako `ibeam`.
+
 ### Drátová LAN, dva Macy (Ol1n) — ČEKÁ
 
 Vyplnit podle `docs/dogfood/phase-0.md`. Brána **G2**: P50 total ≤ 25 ms při 60 Hz a ≥ 58 fps při 1440p.

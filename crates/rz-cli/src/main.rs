@@ -66,6 +66,9 @@ enum Cmd {
         addr: String,
         #[arg(long)]
         source: Option<u64>,
+        /// Seconds to wait before typing, to bring the target window to the front on the agent.
+        #[arg(long, default_value_t = 3)]
+        delay: u64,
     },
     Trusted,
     Forget {
@@ -274,7 +277,7 @@ async fn main() -> Result<()> {
             eprintln!("stream {}: {}×{} @{} fps", ack.stream_id, ack.w, ack.h, ack.fps);
             stats_loop(conn, ctl, secs).await?;
         }
-        Cmd::Poke { addr, source } => {
+        Cmd::Poke { addr, source, delay } => {
             let hub = Hub::open(args.state_dir)?;
             let (conn, mut ctl, auth) = hub.connect(&addr).await?;
             eprintln!("agent „{}“ — oprávnění {}", auth.peer.name, auth.granted.join(", "));
@@ -288,7 +291,7 @@ async fn main() -> Result<()> {
                     }
                 }
             };
-            poke(&conn, &mut ctl, source).await?;
+            poke(&conn, &mut ctl, source, delay).await?;
             conn.close(0u32.into(), b"bye");
         }
         Cmd::Trusted => {
@@ -373,13 +376,14 @@ async fn stats_loop(conn: Connection, ctl: Control, secs: u64) -> Result<()> {
         if window_start.elapsed() >= Duration::from_secs(1) {
             let dt = window_start.elapsed().as_secs_f64();
             lat.sort_by(f64::total_cmp);
-            let p50 = lat.get(lat.len() / 2).copied().unwrap_or(f64::NAN);
+            let q = |f: f64| lat.get(((lat.len().max(1) - 1) as f64 * f).round() as usize).copied().unwrap_or(f64::NAN);
             println!(
-                "{:5.1} fps  {:6.2} Mb/s  keyframes {}  capture→recv P50 {:.1} ms",
+                "{:5.1} fps  {:6.2} Mb/s  keyframes {}  capture→recv P50 {:.1} ms  P95 {:.1} ms",
                 n as f64 / dt,
                 bytes as f64 * 8.0 / dt / 1e6,
                 kf,
-                p50
+                q(0.5),
+                q(0.95)
             );
             (n, bytes, kf) = (0, 0, 0);
             lat.clear();
@@ -393,16 +397,20 @@ async fn stats_loop(conn: Connection, ctl: Control, secs: u64) -> Result<()> {
 
 /// Circles the pointer around the centre of `source` for 2 s, then types "ahoj " with HID keys (layout dependent)
 /// and "Rozhledna ěščřžýáíé ✓" as Unicode text. Watch the agent's screen; needs Accessibility on the agent.
-async fn poke(conn: &Connection, ctl: &mut Control, source: u64) -> Result<()> {
+async fn poke(conn: &Connection, ctl: &mut Control, source: u64, delay: u64) -> Result<()> {
     use rz_proto::datagram::Datagram;
     use rz_proto::framing::write_msg;
     use rz_proto::pb::input_event::Ev;
     let ev = |e: Ev| pb::InputEvent { source_id: source, ev: Some(e) };
     if !agent_status(ctl).await?.accessibility {
         bail!(
-            "agent nemá Zpřístupnění (Accessibility) — vstup by zahodil. Povol ho v menu agenta (✗ Zpřístupnění), \
+            "agent nemá Zpřístupnění (Accessibility) — vstup by zahodil. Povol ho v menu agenta (✗ Zpřístupnění; v macOS 27 Nastavení → Soukromí → „Device Control and Data Access“), \
              restartuj agenta a zkus znovu"
         );
+    }
+    if delay > 0 {
+        eprintln!("píšu do aktivního okna na agentovi za {delay} s — přepni tam do cílového okna (např. TextEdit)");
+        tokio::time::sleep(Duration::from_secs(delay)).await;
     }
     let t0 = Instant::now();
     let mut seq = 0u32;

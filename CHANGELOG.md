@@ -110,3 +110,4 @@
 - Test C ABI (`rz-hub-ffi/tests/ffi.rs`) proti agentovi: JSON události, callback na frame, `take_frame` (CVPixelBuffer správné šířky), `key_mac`, pointer, free.
 - **Oprava (nález z M2):** `rzctl poke` hlásil „hotovo, napsáno…“, i když agent neměl Zpřístupnění a vstup zahodil. Teď počká na `AgentStatus` a bez Zpřístupnění skončí chybou s návodem.
 - Agent v menu baru (bez `--headless`) loguje do `~/Library/Logs/Rozhledna/agent.log`, pokud není dané `--log-file` (log na externím svazku spouští TCC dialog „removable volume“, agent do odpovědi visí).
+- `rzctl stats` vypisuje i P95. `rzctl poke --delay N` (výchozí 3 s): čas přepnout na agentovi do cílového okna (poke píše do aktivního okna).
