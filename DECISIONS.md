@@ -86,6 +86,7 @@ Plán: „> 2 framy neodeslané → drop před enkódováním + bitrate −20 %�
 - `cargo xtask bundle` bere `$RZ_SIGN_IDENTITY`, jinak první „Developer ID Application“, jinak první „Apple Development“. Podepisuje s hardened runtime.
 - Bundle id: `dev.ol1n.rozhledna.spike-agent`, `dev.ol1n.rozhledna.spike-viewer` (produkt později `dev.ol1n.rozhledna.agent` / `.hub`, až padne O1 — název).
 - Pozor: spuštěno z terminálu přiřadí macOS oprávnění terminálu (responsible process), ne binárce. Pro vlastní TCC identitu spouštět bundle přes `open`.
+- Ověřeno 2026-11-23 na M2 (probes/macos-permissions.md bod 6): TCC oprávnění se váže na bundle id. Ze `spike-agent` se na `dev.ol1n.rozhledna.agent` nepřeneslo, Ol1n povolil Nahrávání obrazovky ručně. Každý nový bundle id znamená nové povolení. Bundle id proto po vydání neměnit.
 
 ## 2026-11-22 — Flutter spike (T0.6)
 
