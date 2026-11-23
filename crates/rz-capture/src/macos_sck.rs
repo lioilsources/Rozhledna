@@ -273,6 +273,10 @@ impl ScCapture {
 
     /// `SCContentFilter(desktopIndependentWindow:)`. `scale` = backing scale (2.0 on Retina).
     pub fn window(window_id: u32, scale: f64, max_w: u32, max_h: u32, fps: u32, opts: ScOptions) -> Result<Self> {
+        // A window-only filter never touches CoreGraphics, and SCStream then aborts with
+        // `CGS_REQUIRE_INIT` in a process without NSApplication (CLI agent, sck-probe).
+        // Any CG call initializes the window-server connection; display() gets it via CGMainDisplayID.
+        let _ = objc2_core_graphics::CGMainDisplayID();
         let content = shareable_content()?;
         let windows = unsafe { content.windows() };
         let w = windows.iter().find(|w| unsafe { w.windowID() } == window_id).context("window not found")?;

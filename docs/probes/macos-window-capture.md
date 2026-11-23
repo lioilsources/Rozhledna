@@ -1,7 +1,7 @@
 # T0.7 — Capture jednotlivých oken na macOS (ScreenCaptureKit)
 
 Cíl: zjistit, kdy `SCContentFilter(desktopIndependentWindow:)` dává použitelný obraz, než se na tom postaví Fáze 3 (T3.2).
-Stav: **nástroj hotový, měření čeká na Ol1na** (session Claude nemá Screen Recording).
+Stav: **S1–S3, S5 změřeno na M2; S4, S6–S9 zbývá (ručně), S10 N/A.**
 
 ## Nástroj
 
@@ -38,20 +38,25 @@ Testovací okna: Terminal (AppKit), Safari (WebKit), VS Code nebo Slack (Electro
 
 ## Výsledky
 
-macOS verze: ____   stroj: ____   datum: ____
+macOS 27.0.1, Apple M2 (Mac mini), jeden displej 2560×1080 @ 1× (ne Retina), 2026-11-22.
+Testovací okno: Safari s `tools/latency/counter.html` (mění se každý vsync), 1000×700 pt. Spouštěno z terminálu s povoleným Screen Recording, řízeno přes AppleScript.
 
-| # | aplikace | children | framů / 3 s | 1. frame | velikost | jas / černá % | pozn. (podívat se do BMP) |
+**Oprava nástroje:** `ScCapture::window` padal na `Assertion failed: (did_initialize), function CGS_REQUIRE_INIT` (SCK potřebuje inicializované spojení s window serverem a cesta pro okno nevolala žádnou CG funkci, cesta pro displej ano přes `CGMainDisplayID`). Opraveno voláním `CGMainDisplayID()` na začátku `window()`. Týká se i budoucího agenta bez NSApplication (T3.2).
+
+**Měřítko:** `--scale 2` na 1× displeji dá framy 2000×1400 s obsahem jen v levé horní čtvrtině (zbytek černý). Agent musí brát backing scale z displeje, na kterém okno je, a ne předpokládat 2.
+
+| # | aplikace | children | framů / 3 s | 1. frame | velikost | jas / černá % | pozn. |
 |---|---|---|---|---|---|---|---|
-| S1 | | výchozí | | | | | |
-| S2 | | výchozí | | | | | |
-| S3 | | výchozí | | | | | |
-| S4 | | výchozí | | | | | |
-| S5 | | výchozí | | | | | |
-| S6 | | on / off | | | | | |
-| S7 | | on / off | | | | | |
-| S8 | | on / off | | | | | |
-| S9 | | výchozí | | | | | |
-| S10 | | výchozí | | | | | |
+| S1 | Safari | výchozí | 174 | 93 ms | 1000×700 | 24 / 77 | obraz OK (~58 fps) |
+| S2 | Safari | výchozí | 72 | 67 ms | 1000×700 | 24 / 78 | obraz OK, bez překrývajícího okna (Activity Monitor). Méně framů škrtí nejspíš WebKit u zakrytého okna, ne SCK |
+| S3 | Safari | výchozí | 0 | — | — | — | minimalizované: žádné framy. Hub musí zobrazit poslední frame + stav „minimalizováno“ |
+| S4 | — | — | — | — | — | — | neměřeno (přesun okna na jiný Space nejde spolehlivě automatizovat) |
+| S5 | Safari | výchozí | 169 (v popředí) / 2 (uživatel na jiném Space) | 62 ms | 2560×1080 | 13 / 86 | fullscreen v popředí OK. Když je jeho Space neaktivní, obraz zamrzne (2 framy), aplikace nekreslí |
+| S6 | — | on / off | — | — | — | — | neměřeno (menu je potřeba otevřít ručně během běhu) |
+| S7 | — | on / off | — | — | — | — | neměřeno (ručně) |
+| S8 | — | on / off | — | — | — | — | neměřeno (ručně) |
+| S9 | Safari | výchozí | 233 / 4 s | 59 ms | 600×400 | 23 / 68 | nepřesvědčivé: okno se zmenšilo ještě před startem capture. Zopakovat s delší prodlevou |
+| S10 | — | výchozí | — | — | — | — | N/A, M2 má jeden displej |
 
 ## Závěr pro Fázi 3
 

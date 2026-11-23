@@ -22,6 +22,8 @@ Stav: **protokol připravený, měření čeká na Ol1na** (vyžaduje klikání 
 3. `tccutil reset ScreenCapture dev.ol1n.rozhledna.spike-agent` + nový subscribe: stejná chyba, opět bez dialogu.
 4. Povolení ručně v System Settings → dialog „… may not be able to record the contents of your screen until it is quit. Quit & Reopen / Later“. „Quit & Reopen“ by agenta spustil bez argumentů, proto Later a ruční restart s parametry. Po restartu `screen_recording=true`, capture funguje. V seznamu je jen „Screen & System Audio Recording“, samostatnou položku „Remote Desktop“ k povolení nebylo potřeba (P2: stačí Screen Recording).
 5. **P3 ✓:** po `git pull` + `cargo xtask bundle spike-agent` (nový build, stejná platná identita) zůstává `screen_recording=true` bez dotazu.
+6. **rz-agent (nové bundle id `dev.ol1n.rozhledna.agent`, 2026-11-22):** Screen Recording se z `…spike-agent` nepřenáší, uživatel ho povolil ručně. Při startu z repa na externím disku s `--log-file` na tomtéž disku se nejdřív objeví dialog „would like to access files on a removable volume“. Dokud ho uživatel nepotvrdí, agent visí (nepíše log, neposlouchá). Po rebuildu se stejným podpisem se dialog znovu neukázal. Proto agent v menu baru loguje do `~/Library/Logs/Rozhledna/` (2d68017).
+7. **P8 (část):** bez Accessibility agent hlásí `input injection inject=Cgevent available=false` a CGEvent vstup macOS tiše zahodí (do TextEditu se nenapsalo nic).
 
 ## Experimenty
 
