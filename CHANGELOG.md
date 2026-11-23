@@ -112,3 +112,4 @@
 - Agent v menu baru (bez `--headless`) loguje do `~/Library/Logs/Rozhledna/agent.log`, pokud není dané `--log-file` (log na externím svazku spouští TCC dialog „removable volume“, agent do odpovědi visí).
 - `rzctl stats` vypisuje i P95. `rzctl poke --delay N` (výchozí 3 s): čas přepnout na agentovi do cílového okna (poke píše do aktivního okna).
 - **Oprava (dogfood):** hub po prvním spuštění neviděl agenty v síti. macOS zahazuje multicast, dokud uživatel nepovolí Local Network, a mdns-sd opakuje dotaz s intervalem zdvojnásobovaným až na 1 h. Discovery teď restartuje browse po 3, 10, 30 a 60 s, pak každou minutu.
+- **Oprava (dogfood):** po krátké změně obrazovky (přepnutí okna, stisk klávesy) mohl hub zůstat na předchozím stavu, protože throttle zahodil poslední snímek a SCK další neposlal. Agent teď poslední zahozený snímek odešle, jakmile na něj přijde řada.

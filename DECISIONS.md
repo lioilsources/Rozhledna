@@ -146,3 +146,9 @@ Plán: „> 2 framy neodeslané → drop před enkódováním + bitrate −20 %�
 - **Spouštění grabu ⌃⌥↩, ne holý Enter** (plán 9.6: „Enter na fokusované dlaždici / dvojklik / zkratka“). Enter musí normálně chodit do vzdálené aplikace a dvojklik vybírá slovo, takže zbývá zkratka s hub modifikátorem (výchozí ⌃⌥, plán 9.6) a tlačítko na dlaždici. Uvolnění ⌃⌥⎋ podle plánu.
 - **Tap `cgSessionEventTap` + `headInsertEventTap`**, klávesy se posílají ze Swiftu rovnou do Rustu (žádný skok přes Dart = žádná latence UI vlákna). Kód kláves z tapu je `kVK_*`; na HID ho převádí Rust (`from_mac`), takže tabulka je jen jedna.
 - **OVĚŘIT ručně:** zda session tap dostane ⌘Tab dřív než Dock na macOS 27 (akceptace Fáze 1). Pokud ne, náhrada je `kCGHIDEventTap` (také jen s Accessibility).
+
+## 2026-11-23 — Dogfood: zastaralý obraz v dlaždici
+
+Hub ukazoval TikTok, na M2 bylo Alacritty. Našly se dvě věci:
+- **Chyba agenta (opraveno):** throttle zahodil snímek, který přišel moc brzy po předchozím. SCK posílá snímky jen při změně, takže zahozený snímek mohl být posledním stavem obrazovky a hub by ho nedostal až do další změny. Agent teď nejnovější nezakódovaný snímek drží (`Gate` v `pipeline.rs`) a pošle ho, jakmile přijde jeho slot. Stejně tak snímek odmítnutý kvůli backpressure. Testy `trailing_frame_is_not_lost`, `newer_frame_replaces_pending`.
+- **Stav macOS (WindowServer), ne Rozhledna (M2, probes):** SCK display filtr vykresloval jiný Space než monitor. Čerstvý `SCStream` dával tentýž špatný obsah, `screencapture` správný. Spravilo to přepnutí Space tam a zpět. Restart streamu by tedy nepomohl. Spouštěč zatím neznámý, kandidáti jsou zamčení a odemčení nebo programové přepínání AXFullScreen. **OVĚŘIT:** pokud se to zopakuje, najít spouštěč. Až pak rozhodnout o detekci (např. porovnání s `CGWindowList`) nebo o tlačítku „obnovit“.
