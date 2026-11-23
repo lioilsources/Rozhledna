@@ -81,6 +81,20 @@ const SCROLL_POINT_DELTA_2: u32 = 97;
 const SCROLL_FIXED_DELTA_1: u32 = 93;
 const SCROLL_FIXED_DELTA_2: u32 = 94;
 
+/// Protocol phase (NSEventPhase bits) → `CGScrollPhase` (CGEventTypes.h): the numbering differs, NSEventPhase
+/// "changed" = 4 is `kCGScrollPhaseEnded`, so passing it through made every trackpad update an "end" and AppKit
+/// views (Finder) ignored the gesture.
+pub(crate) fn cg_scroll_phase(ns: u32) -> Option<i64> {
+    Some(match ns {
+        1 => 1,    // began
+        4 => 2,    // changed
+        8 => 4,    // ended
+        16 => 8,   // cancelled
+        32 => 128, // may begin
+        _ => return None,
+    })
+}
+
 // CGEventFlags (+ NX device-dependent side bits)
 const F_CAPS: u64 = 0x0001_0000;
 const F_SHIFT: u64 = 0x0002_0000;
@@ -218,8 +232,8 @@ impl Injector for CgEventInjector {
                             CGEventSetDoubleValueField(e, SCROLL_POINT_DELTA_2, dx);
                             CGEventSetDoubleValueField(e, SCROLL_FIXED_DELTA_1, dy);
                             CGEventSetDoubleValueField(e, SCROLL_FIXED_DELTA_2, dx);
-                            if phase != 0 {
-                                CGEventSetIntegerValueField(e, SCROLL_PHASE, phase as i64);
+                            if let Some(p) = cg_scroll_phase(phase) {
+                                CGEventSetIntegerValueField(e, SCROLL_PHASE, p);
                             }
                         }
                     }
@@ -240,5 +254,16 @@ impl Injector for CgEventInjector {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn scroll_phase_mapping() {
+        use super::cg_scroll_phase as m;
+        assert_eq!((m(1), m(4), m(8), m(16), m(32)), (Some(1), Some(2), Some(4), Some(8), Some(128)));
+        assert_eq!(m(0), None, "mouse wheel: no phase");
+        assert_eq!(m(2), None, "stationary has no CG counterpart");
     }
 }
