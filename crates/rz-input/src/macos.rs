@@ -74,6 +74,8 @@ const OTHER_DRAGGED: u32 = 27;
 // CGEventField
 const MOUSE_CLICK_STATE: u32 = 1;
 const MOUSE_BUTTON_NUMBER: u32 = 3;
+const MOUSE_DELTA_X: u32 = 4;
+const MOUSE_DELTA_Y: u32 = 5;
 const SCROLL_IS_CONTINUOUS: u32 = 88;
 const SCROLL_PHASE: u32 = 99;
 const SCROLL_POINT_DELTA_1: u32 = 96;
@@ -132,6 +134,9 @@ fn flags(m: Mods) -> u64 {
 
 pub struct CgEventInjector {
     source: CGEventSourceRef,
+    /// Set `kCGMouseEventDeltaX/Y` on motion (real mice do; `drag-probe` compares with and without).
+    deltas: bool,
+    last: Option<CGPoint>,
 }
 
 // SAFETY: CGEventSource is a CF object; posting from one thread at a time (the Injector is behind a Mutex).
@@ -143,7 +148,12 @@ impl CgEventInjector {
         if !source.is_null() {
             unsafe { CGEventSourceSetLocalEventsSuppressionInterval(source, 0.0) };
         }
-        Self { source }
+        Self { source, deltas: false, last: None }
+    }
+
+    /// Whether motion events carry `kCGMouseEventDeltaX/Y` (see `examples/drag-probe.rs`).
+    pub fn set_deltas(&mut self, on: bool) {
+        self.deltas = on;
     }
 
     fn post(&self, e: CGEventRef, m: Mods) {
@@ -191,7 +201,16 @@ impl Injector for CgEventInjector {
                     } else {
                         (MOVED, 0)
                     };
-                    self.post(CGEventCreateMouseEvent(src, kind, CGPoint { x, y }, button), m);
+                    let e = CGEventCreateMouseEvent(src, kind, CGPoint { x, y }, button);
+                    if self.deltas
+                        && !e.is_null()
+                        && let Some(p) = self.last
+                    {
+                        CGEventSetIntegerValueField(e, MOUSE_DELTA_X, (x - p.x).round() as i64);
+                        CGEventSetIntegerValueField(e, MOUSE_DELTA_Y, (y - p.y).round() as i64);
+                    }
+                    self.last = Some(CGPoint { x, y });
+                    self.post(e, m);
                 }
                 Action::Button { button, down, x, y, click_count } => {
                     let kind = match (button, down) {
@@ -202,6 +221,7 @@ impl Injector for CgEventInjector {
                         (_, true) => OTHER_DOWN,
                         (_, false) => OTHER_UP,
                     };
+                    self.last = Some(CGPoint { x, y });
                     let e = CGEventCreateMouseEvent(src, kind, CGPoint { x, y }, button as u32);
                     if !e.is_null() {
                         CGEventSetIntegerValueField(e, MOUSE_CLICK_STATE, click_count as i64);
