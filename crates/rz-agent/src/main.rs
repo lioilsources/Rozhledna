@@ -63,6 +63,7 @@ struct Args {
     /// SCK `minimumFrameInterval` = 1/N s (default 2×fps).
     #[arg(long)]
     sck_interval_hz: Option<u32>,
+    /// Log file. Default: stderr with `--headless`, otherwise ~/Library/Logs/Rozhledna/agent.log.
     #[arg(long)]
     log_file: Option<PathBuf>,
     /// Input injection: `cgevent` (needs Accessibility) or `null` (log only). Default: cgevent for sck,
@@ -81,7 +82,9 @@ fn main() -> Result<()> {
     if let Some(mtm) = objc2::MainThreadMarker::new() {
         let _ = objc2_app_kit::NSApplication::sharedApplication(mtm);
     }
-    init_logging(args.log_file.as_deref())?;
+    // The menu-bar app has no terminal: log to ~/Library/Logs/Rozhledna/agent.log unless told otherwise.
+    let log_file = args.log_file.clone().or_else(|| (!args.headless).then(default_log_file).flatten());
+    init_logging(log_file.as_deref())?;
     let dir = match &args.state_dir {
         Some(d) => d.clone(),
         None => default_dir("agent")?,
@@ -132,6 +135,15 @@ fn main() -> Result<()> {
     let agent = Agent::new(identity, &name, trust, Registry::new(backend), limits, Ui::Terminal, injector);
     let rt = tokio::runtime::Runtime::new()?;
     rt.block_on(agent.serve(args.bind, !args.no_mdns))
+}
+
+fn default_log_file() -> Option<PathBuf> {
+    if !cfg!(target_os = "macos") {
+        return None;
+    }
+    let dir = PathBuf::from(std::env::var_os("HOME")?).join("Library/Logs/Rozhledna");
+    std::fs::create_dir_all(&dir).ok()?;
+    Some(dir.join("agent.log"))
 }
 
 fn init_logging(file: Option<&std::path::Path>) -> Result<()> {

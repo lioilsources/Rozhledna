@@ -7,6 +7,8 @@ Odkliká Ol1n. Agent = Mac mini M2, hub = MacBook (nebo naopak). Fáze 2 začne 
 - [ ] `cargo xtask bundle rz-agent` → `open "dist/Rozhledna Agent.app"` (výchozí: SCK, port 47470, mDNS).
 - [ ] V menu baru je ikona rozhledny. „✗ Nahrávání obrazovky“ → klik → povolit (pak „Quit & Reopen“). Totéž „✗ Zpřístupnění“.
 - [ ] Po restartu agenta obě položky ✓.
+- [ ] Log agenta: `~/Library/Logs/Rozhledna/agent.log` (Console.app ho najde taky). `--log-file` nesměrovat na
+      externí svazek — macOS se pak při startu ptá na přístup k „removable volume“ a agent do odpovědi visí.
 
 ## 2. Hub (MacBook)
 - [ ] `cargo xtask hub` → `open dist/Rozhledna.app`. macOS se zeptá na Local Network → Povolit.

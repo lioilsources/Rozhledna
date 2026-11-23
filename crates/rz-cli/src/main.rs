@@ -155,7 +155,26 @@ async fn reply(ctl: &mut Control, seq: u64) -> Result<Msg> {
     }
 }
 
+/// Last `AgentStatus` seen on any control stream (the agent pushes one right after the handshake).
+static LAST_STATUS: std::sync::Mutex<Option<pb::AgentStatus>> = std::sync::Mutex::new(None);
+
+/// The agent's status: the one already seen, or the next one (it is sent right after connecting).
+async fn agent_status(ctl: &mut Control) -> Result<pb::AgentStatus> {
+    if let Some(s) = *LAST_STATUS.lock().unwrap() {
+        return Ok(s);
+    }
+    loop {
+        let e =
+            tokio::time::timeout(Duration::from_secs(5), ctl.recv()).await?.context("agent closed")?.context("eof")?;
+        if let Some(Msg::AgentStatus(s)) = e.msg {
+            print_status(&s);
+            return Ok(s);
+        }
+    }
+}
+
 fn print_status(s: &pb::AgentStatus) {
+    *LAST_STATUS.lock().unwrap() = Some(*s);
     let m = |b| if b { "✓" } else { "✗" };
     eprintln!(
         "agent: screen recording {}  accessibility {}{}{}",
@@ -379,6 +398,12 @@ async fn poke(conn: &Connection, ctl: &mut Control, source: u64) -> Result<()> {
     use rz_proto::framing::write_msg;
     use rz_proto::pb::input_event::Ev;
     let ev = |e: Ev| pb::InputEvent { source_id: source, ev: Some(e) };
+    if !agent_status(ctl).await?.accessibility {
+        bail!(
+            "agent nemá Zpřístupnění (Accessibility) — vstup by zahodil. Povol ho v menu agenta (✗ Zpřístupnění), \
+             restartuj agenta a zkus znovu"
+        );
+    }
     let t0 = Instant::now();
     let mut seq = 0u32;
     while t0.elapsed() < Duration::from_secs(2) {
