@@ -111,3 +111,4 @@
 - **Oprava (nález z M2):** `rzctl poke` hlásil „hotovo, napsáno…“, i když agent neměl Zpřístupnění a vstup zahodil. Teď počká na `AgentStatus` a bez Zpřístupnění skončí chybou s návodem.
 - Agent v menu baru (bez `--headless`) loguje do `~/Library/Logs/Rozhledna/agent.log`, pokud není dané `--log-file` (log na externím svazku spouští TCC dialog „removable volume“, agent do odpovědi visí).
 - `rzctl stats` vypisuje i P95. `rzctl poke --delay N` (výchozí 3 s): čas přepnout na agentovi do cílového okna (poke píše do aktivního okna).
+- **Oprava (dogfood):** hub po prvním spuštění neviděl agenty v síti. macOS zahazuje multicast, dokud uživatel nepovolí Local Network, a mdns-sd opakuje dotaz s intervalem zdvojnásobovaným až na 1 h. Discovery teď restartuje browse po 3, 10, 30 a 60 s, pak každou minutu.

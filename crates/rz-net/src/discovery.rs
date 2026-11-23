@@ -11,6 +11,15 @@ use crate::lan::is_lan;
 
 pub const SERVICE_TYPE: &str = "_rozhledna._udp.local.";
 
+/// Gaps between browse restarts at start; then every [`REBROWSE_EVERY`].
+const REBROWSE: [std::time::Duration; 4] = [
+    std::time::Duration::from_secs(3),
+    std::time::Duration::from_secs(7),
+    std::time::Duration::from_secs(20),
+    std::time::Duration::from_secs(30),
+];
+const REBROWSE_EVERY: std::time::Duration = std::time::Duration::from_secs(60);
+
 /// What a node announces.
 #[derive(Clone, Debug)]
 pub struct Advert {
@@ -88,13 +97,36 @@ impl Discovery {
     }
 
     /// Browses for peers. Events arrive on a tokio channel; a background thread pumps the mDNS receiver.
+    ///
+    /// The browse is restarted on [`REBROWSE`]: mdns-sd doubles the query interval up to 1 h, so a query lost at
+    /// start (first launch: macOS drops multicast until Local Network is allowed) would not be repeated for minutes.
+    /// Re-browsing resets that schedule and sends a fresh query; already known peers are not re-reported.
     pub fn browse(&self) -> Result<tokio::sync::mpsc::UnboundedReceiver<Discovered>> {
-        let rx = self.daemon.browse(SERVICE_TYPE)?;
+        let daemon = self.daemon.clone();
+        let mut rx = daemon.browse(SERVICE_TYPE)?;
         let (tx, out) = tokio::sync::mpsc::unbounded_channel();
         let own = self.registered.clone();
         std::thread::Builder::new().name("rz-mdns".into()).spawn(move || {
             let mut seen: HashMap<String, Peer> = HashMap::new();
-            while let Ok(ev) = rx.recv() {
+            let started = std::time::Instant::now();
+            let mut round = 0usize;
+            loop {
+                let due = started
+                    + REBROWSE.iter().take(round + 1).sum::<std::time::Duration>()
+                    + REBROWSE_EVERY * round.saturating_sub(REBROWSE.len() - 1) as u32;
+                let ev = match rx.recv_timeout(due.saturating_duration_since(std::time::Instant::now())) {
+                    Ok(ev) => ev,
+                    Err(mdns_sd::RecvTimeoutError::Timeout) => {
+                        round += 1;
+                        tracing::debug!(round, "mDNS re-browse");
+                        match daemon.browse(SERVICE_TYPE) {
+                            Ok(r) => rx = r,
+                            Err(_) => break, // daemon shut down
+                        }
+                        continue;
+                    }
+                    Err(mdns_sd::RecvTimeoutError::Disconnected) => break,
+                };
                 let d = match ev {
                     ServiceEvent::ServiceResolved(info) => {
                         let fullname = info.get_fullname().to_string();
