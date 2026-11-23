@@ -24,6 +24,7 @@ Stav: **protokol připravený, měření čeká na Ol1na** (vyžaduje klikání 
 5. **P3 ✓:** po `git pull` + `cargo xtask bundle spike-agent` (nový build, stejná platná identita) zůstává `screen_recording=true` bez dotazu.
 6. **rz-agent (nové bundle id `dev.ol1n.rozhledna.agent`, 2026-11-22):** Screen Recording se z `…spike-agent` nepřenáší, uživatel ho povolil ručně. Při startu z repa na externím disku s `--log-file` na tomtéž disku se nejdřív objeví dialog „would like to access files on a removable volume“. Dokud ho uživatel nepotvrdí, agent visí (nepíše log, neposlouchá). Po rebuildu se stejným podpisem se dialog znovu neukázal. Proto agent v menu baru loguje do `~/Library/Logs/Rozhledna/` (2d68017).
 7. **P8 (část):** bez Accessibility agent hlásí `input injection inject=Cgevent available=false` a CGEvent vstup macOS tiše zahodí (do TextEditu se nenapsalo nic).
+8. **P8:** v macOS 27 se položka jmenuje **„Device Control and Data Access“** (dřív Accessibility) a deep link `…Privacy_Accessibility` ji otevře. Agent se v seznamu objevil sám (po `AXIsProcessTrusted`), ale vypnutý, a uživatel si to snadno splete s povoleným stavem. Po zapnutí přepínače je `AXIsProcessTrusted` true **hned, bez restartu agenta** (`rzctl poke` → „accessibility ✓“). CGEvent psaní z agenta prošlo i s diakritikou a ✓ („ahoj Rozhledna ěščřžýáíé ✓“). Pozor: poke píše do **aktivního okna**, při prvním pokusu skončil text v terminálu.
 
 ## Experimenty
 
